@@ -95,6 +95,18 @@ examples:
     allow_extra_tags: false
     tags: { class: footway }
 
+- name: sidewalk where bikes are allowed is kept
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: footway, footway: sidewalk, bicycle: "yes" }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    allow_extra_tags: false
+    tags: { class: footway, bicycle: "yes" }
+
 - name: plain sidewalk is dropped
   input:
     source: osm
