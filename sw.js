@@ -70,6 +70,11 @@ self.addEventListener('activate', function (event) {
   }).then(function () { return self.clients.claim(); }));
 });
 
+// The page asks which release this is, to show it and spot a newer one.
+self.addEventListener('message', function (event) {
+  if (event.data && event.data.type === 'version' && event.ports[0]) event.ports[0].postMessage(BUILD);
+});
+
 self.addEventListener('fetch', function (event) {
   var req = event.request;
   if (req.method !== 'GET') return;

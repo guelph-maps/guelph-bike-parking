@@ -388,14 +388,55 @@
           el.innerHTML = '<a href="' + esc(full) + '" target="_blank" rel="noopener">Guelph bike parking <span aria-hidden="true">&#8599;</span></a>';
         } else {
           el.innerHTML = '<h1>Guelph Bike Parking</h1>' +
-            '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>';
+            '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>' +
+            '<button type="button" class="bp-menu-btn" title="More" aria-label="More" aria-haspopup="true" aria-expanded="false">' +
+              '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>' +
+              '<span class="bp-menu-dot" hidden></span></button>' +
+            '<div class="bp-menu" hidden></div>';
           L.DomEvent.on(el.querySelector('.bp-about-btn'), 'click', showAbout);
+          setUpMenu(el);
         }
         L.DomEvent.disableClickPropagation(el);
+        L.DomEvent.disableScrollPropagation(el);
         return el;
       }
     });
     new Title().addTo(map);
+  }
+
+  // The ⋮ menu: which release this is, and a way to start fresh.
+  function setUpMenu(el) {
+    var btn = el.querySelector('.bp-menu-btn');
+    var box = el.querySelector('.bp-menu');
+    function open() {
+      renderMenu(box);
+      box.hidden = false;
+      btn.setAttribute('aria-expanded', 'true');
+      el.classList.add('is-menu-open');
+      checkForUpdate();
+    }
+    function close() {
+      box.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      el.classList.remove('is-menu-open');
+    }
+    btn.addEventListener('click', function () { if (box.hidden) open(); else close(); });
+    box.addEventListener('click', function (e) {
+      var act = e.target.closest('[data-act]');
+      if (!act) return;
+      act.disabled = true;
+      if (act.dataset.act === 'clear') {
+        act.textContent = 'Clearing…';
+        clearCacheAndReload();
+      } else {
+        act.textContent = 'Updating…';
+        location.reload(); // the new release already controls the page
+      }
+    });
+    document.addEventListener('pointerdown', function (e) { if (!box.hidden && !el.contains(e.target)) close(); }, true);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !box.hidden) { close(); btn.focus(); }
+    });
   }
 
   function addFullscreenControl() {
@@ -761,9 +802,8 @@
   // ---- Offline -----------------------------------------------------------------
   // The service worker keeps the app, the data and viewed map tiles, so the map
   // still opens with no signal. Tell people when they're seeing a saved copy.
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch(function () { /* the map works without it */ });
-  }
+  var sw = 'serviceWorker' in navigator && location.protocol !== 'file:' ? navigator.serviceWorker : null;
+  var swReg = sw ? sw.register('sw.js').catch(function () { return null; /* the map works without it */ }) : Promise.resolve(null);
 
   var offlineNote = L.DomUtil.create('div', 'bp-offline', map.getContainer());
   offlineNote.setAttribute('role', 'status');
@@ -774,6 +814,91 @@
   window.addEventListener('online', syncOnline);
   window.addEventListener('offline', syncOnline);
   syncOnline();
+
+  // ---- Release and cache ---------------------------------------------------------
+  // Each deploy stamps sw.js with its release. A new one installs in the
+  // background and takes over at once (skipWaiting), but this page keeps
+  // running the code it opened with, so the menu offers a reload.
+  var release = { loaded: null, newer: null };
+  var lastCheck = 0;
+
+  function askRelease(worker) {
+    return new Promise(function (resolve) {
+      if (!worker) return resolve(null);
+      var channel = new MessageChannel();
+      var t = setTimeout(function () { resolve(null); }, 3000); // releases before the menu don't answer
+      channel.port1.onmessage = function (e) { clearTimeout(t); resolve(e.data); };
+      worker.postMessage({ type: 'version' }, [channel.port2]);
+    });
+  }
+
+  if (sw) {
+    var hadController = !!sw.controller;
+    askRelease(sw.controller).then(function (b) { if (b) { release.loaded = b; syncMenu(); } });
+    sw.addEventListener('controllerchange', function () {
+      askRelease(sw.controller).then(function (b) {
+        // On a first visit the page came from the network, so it is this release.
+        if (!hadController && !release.loaded) release.loaded = b;
+        else if (b && b !== release.loaded) release.newer = b;
+        hadController = true;
+        syncMenu();
+      });
+    });
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) checkForUpdate(); });
+  }
+
+  function checkForUpdate() {
+    if (!navigator.onLine || Date.now() - lastCheck < 5 * 60000) return;
+    lastCheck = Date.now();
+    swReg.then(function (reg) { return reg && reg.update(); }).catch(function () {});
+  }
+
+  // Drops the app, the data, the street tiles and the saved bike map, then
+  // reloads from the network; the fresh service worker saves it all again.
+  function clearCacheAndReload() {
+    var ours = /^(app-|data-v|tiles-v|basemap-v)/; // other github.io sites share this origin
+    swReg.then(function (reg) { return reg && reg.unregister(); })
+      .then(function () { return window.caches ? caches.keys() : []; })
+      .then(function (keys) {
+        return Promise.all(keys.filter(function (k) { return ours.test(k); }).map(function (k) { return caches.delete(k); }));
+      })
+      .catch(function () {})
+      .then(function () { location.reload(); });
+  }
+
+  function releaseLabel(b) {
+    if (!b) return 'Version unknown';
+    if (b === '__BUILD__') return 'Development copy';
+    var m = /^([0-9a-f]+)-(\d+)$/.exec(b); // commit-run, from the deploy workflow
+    return m ? 'Version ' + m[2] + ' (' + m[1].slice(0, 7) + ')' : 'Version ' + b;
+  }
+
+  function renderMenu(box) {
+    var s = BikeBasemap.state();
+    var bytes = (s.saved && s.saved.bytes) || (s.info && s.info.bytes);
+    var html = '<p class="bp-menu-version">' + esc(releaseLabel(release.loaded)) + '</p>';
+    if (release.newer) html += '<p class="bp-menu-new"><span>New</span> ' + esc(releaseLabel(release.newer)) + ' is ready</p>';
+    html += '<div class="bp-menu-actions">' +
+      (release.newer ? '<button type="button" data-act="update">Update now</button>' : '') +
+      '<button type="button" data-act="clear"' + (navigator.onLine ? '' : ' disabled') + '>Clear cache &amp; reload</button>' +
+      '</div><p class="bp-menu-hint">' + (navigator.onLine
+        ? 'Clearing downloads the app and the bike map again' + (bytes ? ' (about ' + Math.max(1, Math.round(bytes / 1048576)) + ' MB)' : '') + '.'
+        : 'Clearing needs a connection.') + '</p>';
+    box.innerHTML = html;
+  }
+
+  function syncMenu() {
+    var el = document.querySelector('.bp-title');
+    var box = el && el.querySelector('.bp-menu');
+    if (!box) return;
+    el.querySelector('.bp-menu-dot').hidden = !release.newer;
+    var btn = el.querySelector('.bp-menu-btn');
+    btn.title = release.newer ? 'More: a new version is ready' : 'More';
+    btn.setAttribute('aria-label', btn.title);
+    if (!box.hidden) renderMenu(box);
+  }
+  window.addEventListener('online', syncMenu);
+  window.addEventListener('offline', syncMenu);
 
   // ---- Load data -------------------------------------------------------------
   fetch(BOUNDARY_URL)
