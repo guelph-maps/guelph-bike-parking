@@ -29,8 +29,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Download bike parking data from OpenStreetMap
+      - name: Download fresh bike parking data from OpenStreetMap
+        # If Overpass is down or slow, publish the copy committed in data/ instead.
         run: node scripts/fetch-data.mjs data
+        timeout-minutes: 6
+        continue-on-error: true
       - uses: actions/configure-pages@v5
       - name: Collect site files
         run: |

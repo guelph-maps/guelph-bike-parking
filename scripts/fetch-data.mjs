@@ -26,7 +26,7 @@ const ENDPOINTS = [
   'https://overpass.private.coffee/api/interpreter',
 ];
 
-const QUERY = `[out:json][timeout:90];
+const QUERY = `[out:json][timeout:45];
 nwr["amenity"="bicycle_parking"](${BBOX.join(',')});
 out center tags;`;
 
@@ -57,8 +57,9 @@ const KEEP = {
 
 async function fetchOverpass() {
   let lastError;
-  for (const url of ENDPOINTS) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
+  // Two rounds over the mirrors; a healthy server answers this query in seconds.
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    for (const url of ENDPOINTS) {
       try {
         const res = await fetch(url, {
           method: 'POST',
@@ -67,7 +68,7 @@ async function fetchOverpass() {
             'User-Agent': USER_AGENT,
           },
           body: new URLSearchParams({ data: QUERY }),
-          signal: AbortSignal.timeout(120_000),
+          signal: AbortSignal.timeout(60_000),
         });
         if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
         const json = await res.json();
@@ -76,7 +77,7 @@ async function fetchOverpass() {
       } catch (err) {
         lastError = err;
         console.warn(`Overpass request failed (${url}, attempt ${attempt}): ${err.message}`);
-        await new Promise((r) => setTimeout(r, 3000 * attempt));
+        await new Promise((r) => setTimeout(r, 2000));
       }
     }
   }

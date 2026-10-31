@@ -51,7 +51,9 @@ Overpass API being up while people use it. `scripts/fetch-data.mjs` downloads bi
 parking from the Overpass API and the city boundary from Nominatim, keeps only parking
 inside city limits, and writes `data/bike-parking.geojson` and
 `data/guelph-boundary.geojson`. The deploy workflow runs it on every deploy and every
-Monday, so the published map stays current; `data/` isn't committed.
+Monday, so the published map stays current. If Overpass is down, the deploy uses the
+copy committed in `data/`; refresh that copy now and then by running the script and
+committing the result.
 
 Address search uses [Photon](https://photon.komoot.io) (OpenStreetMap data) and also
 matches parking names.
@@ -68,10 +70,9 @@ Many Guelph locations have no `capacity` yet. Adding it in OSM makes the map mor
 
 ## Running locally
 
-Download the data once, then use any static file server:
+Any static file server works:
 
 ```sh
-node scripts/fetch-data.mjs
 python3 -m http.server 8000
 # open http://localhost:8000
 ```
