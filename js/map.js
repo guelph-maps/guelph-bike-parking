@@ -52,10 +52,11 @@
   var osmAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
   var baseLayers = {
     'Street map': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: osmAttribution
+      maxZoom: 19, crossOrigin: 'anonymous', attribution: osmAttribution
     }),
     'Cycling map': L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
       maxZoom: 19,
+      crossOrigin: 'anonymous',
       attribution: '<a href="https://www.cyclosm.org" target="_blank" rel="noopener">CyclOSM</a> | ' + osmAttribution
     })
   };
@@ -66,6 +67,7 @@
     'Cycling routes': L.tileLayer('https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png', {
       maxZoom: 19,
       opacity: 0.8,
+      crossOrigin: 'anonymous',
       attribution: 'Routes: <a href="https://cycling.waymarkedtrails.org" target="_blank" rel="noopener">Waymarked Trails</a>'
     })
   };
@@ -669,6 +671,23 @@
     if (about.showModal) about.showModal();
     else about.setAttribute('open', '');
   }
+
+  // ---- Offline -----------------------------------------------------------------
+  // The service worker keeps the app, the data and viewed map tiles, so the map
+  // still opens with no signal. Tell people when they're seeing a saved copy.
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    navigator.serviceWorker.register('sw.js').catch(function () { /* the map works without it */ });
+  }
+
+  var offlineNote = L.DomUtil.create('div', 'bp-offline', map.getContainer());
+  offlineNote.setAttribute('role', 'status');
+  function syncOnline() {
+    offlineNote.textContent = navigator.onLine ? '' : 'Offline: showing the saved map';
+    offlineNote.hidden = navigator.onLine;
+  }
+  window.addEventListener('online', syncOnline);
+  window.addEventListener('offline', syncOnline);
+  syncOnline();
 
   // ---- Load data -------------------------------------------------------------
   fetch(BOUNDARY_URL)

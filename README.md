@@ -88,8 +88,25 @@ the data file from `file://`.
 the default branch, every Monday, and on demand (Actions → Deploy map to GitHub Pages → Run workflow).
 One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
-Leaflet 1.9.4 and Leaflet.markercluster 1.5.3 load from unpkg, pinned with
-subresource integrity hashes.
+Leaflet 1.9.4 and Leaflet.markercluster 1.5.3 are vendored in `vendor/` (byte-identical
+to the npm releases), so the map loads nothing from third-party CDNs.
+
+## Offline
+
+Guelph's mobile signal is patchy, so the map is built to work without it. `sw.js` is a
+service worker that:
+
+- precaches the app (HTML, CSS, JS, vendored libraries, icons) per release. The deploy
+  workflow stamps the commit into the cache name, so each release replaces the old copy;
+- serves the parking data and city boundary from cache at once and refreshes them in the
+  background ("stale-while-revalidate");
+- keeps map tiles as you browse, cache-first, capped at about 3,000 tiles (~50 MB).
+
+Nothing waits on the network when a saved copy exists, because a weak connection hangs
+where no connection fails fast. When the browser reports being offline, the map says
+it's showing the saved copy. `manifest.webmanifest` makes the map installable as an app.
+On iPhone that matters: Safari clears a site's saved data after about a week without a
+visit unless it's added to the home screen.
 
 ## Credits
 

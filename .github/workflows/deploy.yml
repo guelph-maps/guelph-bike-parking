@@ -38,7 +38,9 @@ jobs:
       - name: Collect site files
         run: |
           mkdir _site
-          cp -r index.html embed.html favicon.svg css js data _site/
+          cp -r index.html embed.html favicon.svg manifest.webmanifest sw.js icons vendor css js data _site/
+          # A new cache name per release, so phones pick up the new app files.
+          sed -i "s/__BUILD__/${GITHUB_SHA::12}-${GITHUB_RUN_NUMBER}/" _site/sw.js
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
