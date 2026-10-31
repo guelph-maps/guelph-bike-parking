@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 // Downloads bicycle parking in Guelph, Ontario from OpenStreetMap (via the
-// Overpass API) and writes a trimmed GeoJSON file used by the map.
+// Overpass API) plus the city boundary (via Nominatim), and writes the trimmed
+// GeoJSON files used by the map.
 //
-//   node scripts/fetch-data.mjs [output-path]
+//   node scripts/fetch-data.mjs [output-dir]
 //
 // Data © OpenStreetMap contributors, available under the ODbL.
 
 import { writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { join } from 'node:path';
 
-const OUT = process.argv[2] || 'data/bike-parking.geojson';
+const OUT_DIR = process.argv[2] || 'data';
+const USER_AGENT = 'guelph-bike-parking (https://github.com/guelph-maps/guelph-bike-parking)';
+
+// OSM relation for the City of Guelph boundary.
+const BOUNDARY_URL = 'https://nominatim.openstreetmap.org/lookup?osm_ids=R7486148' +
+  '&format=geojson&polygon_geojson=1&polygon_threshold=0.0001';
 
 // south, west, north, east — covers the City of Guelph limits.
 const BBOX = [43.475, -80.335, 43.605, -80.140];
@@ -39,6 +45,10 @@ const KEEP = {
   cargo_bike: 'cargo_bike',
   'capacity:cargo_bike': 'capacity_cargo',
   website: 'website',
+  'addr:housenumber': 'housenumber',
+  'addr:street': 'street',
+  'operator:type': 'operator_type',
+  opening_hours: 'opening_hours',
   mapillary: 'mapillary',
   panoramax: 'panoramax',
   check_date: 'check_date',
@@ -54,7 +64,7 @@ async function fetchOverpass() {
           method: 'POST',
           headers: {
             'Content-Type': 'application/x-www-form-urlencoded',
-            'User-Agent': 'guelph-bike-parking (https://github.com/guelph-maps/guelph-bike-parking)',
+            'User-Agent': USER_AGENT,
           },
           body: new URLSearchParams({ data: QUERY }),
           signal: AbortSignal.timeout(120_000),
@@ -100,10 +110,46 @@ function toFeature(el) {
   };
 }
 
-const data = await fetchOverpass();
+async function fetchBoundary() {
+  try {
+    const res = await fetch(BOUNDARY_URL, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(60_000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const geometry = json.features?.[0]?.geometry;
+    if (!geometry || !/Polygon$/.test(geometry.type)) throw new Error('no polygon in response');
+    return geometry;
+  } catch (err) {
+    console.warn(`City boundary unavailable, keeping everything in the bounding box: ${err.message}`);
+    return null;
+  }
+}
+
+// Ray casting; `rings` is a GeoJSON polygon (outer ring + holes).
+function inPolygon([x, y], rings) {
+  let inside = false;
+  for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i];
+      const [xj, yj] = ring[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+function inBoundary(point, geometry) {
+  const polygons = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+  return polygons.some((rings) => inPolygon(point, rings));
+}
+
+const [data, boundary] = await Promise.all([fetchOverpass(), fetchBoundary()]);
 const features = data.elements
   .map(toFeature)
   .filter(Boolean)
+  .filter((f) => !boundary || inBoundary(f.geometry.coordinates, boundary))
   .sort((a, b) => a.properties.osm.localeCompare(b.properties.osm));
 
 const geojson = {
@@ -118,8 +164,15 @@ const geojson = {
   features,
 };
 
-await mkdir(dirname(OUT), { recursive: true });
-await writeFile(OUT, JSON.stringify(geojson, null, 1) + '\n');
+await mkdir(OUT_DIR, { recursive: true });
+await writeFile(join(OUT_DIR, 'bike-parking.geojson'), JSON.stringify(geojson) + '\n');
+if (boundary) {
+  const boundaryGeojson = {
+    type: 'FeatureCollection',
+    features: [{ type: 'Feature', geometry: boundary, properties: { name: 'City of Guelph' } }],
+  };
+  await writeFile(join(OUT_DIR, 'guelph-boundary.geojson'), JSON.stringify(boundaryGeojson) + '\n');
+}
 
 const spaces = features.reduce((sum, f) => sum + (f.properties.capacity || 0), 0);
-console.log(`Wrote ${features.length} locations (${spaces} known spaces) to ${OUT}`);
+console.log(`Wrote ${features.length} locations (${spaces} known spaces) to ${OUT_DIR}/`);

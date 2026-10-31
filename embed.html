@@ -55,6 +55,8 @@
         <label><input type="checkbox" name="cluster" checked> Group nearby parking</label>
         <label><input type="checkbox" name="covered"> Covered or indoor only</label>
         <label><input type="checkbox" name="cycle"> Cycling base map</label>
+        <label><input type="checkbox" name="routes"> Show cycling routes</label>
+        <label><input type="checkbox" name="search" checked> Address search box</label>
       </fieldset>
       <fieldset>
         <legend>Starting view</legend>
@@ -65,7 +67,7 @@
     </form>
 
     <div>
-      <div class="preview"><iframe id="preview" title="Guelph bike parking map preview" allow="geolocation"></iframe></div>
+      <div class="preview"><iframe id="preview" title="Guelph bike parking map preview" allow="geolocation; fullscreen"></iframe></div>
       <h2>Embed code</h2>
       <textarea id="code" readonly aria-label="Embed code"></textarea>
       <button type="button" id="copy">Copy code</button>
@@ -82,6 +84,8 @@
     <tr><td><code>cluster=0</code></td><td>Show every location instead of grouping them</td></tr>
     <tr><td><code>legend</code></td><td><code>open</code>, <code>closed</code> or <code>0</code> (hidden)</td></tr>
     <tr><td><code>basemap=cycle</code></td><td>Start with the CyclOSM cycling map</td></tr>
+    <tr><td><code>routes=1</code></td><td>Show signed cycling routes (Waymarked Trails) on top</td></tr>
+    <tr><td><code>search=0</code></td><td>Hide the address search box</td></tr>
     <tr><td><code>embed</code></td><td><code>1</code> for the compact layout. It switches on automatically inside an iframe; <code>0</code> turns it off.</td></tr>
   </table>
   <p style="margin-top:16px"><a href="./">← Back to the map</a></p>
@@ -106,6 +110,8 @@
     if (!f.cluster.checked) q.set('cluster', '0');
     if (f.covered.checked) q.set('covered', '1');
     if (f.cycle.checked) q.set('basemap', 'cycle');
+    if (f.routes.checked) q.set('routes', '1');
+    if (!f.search.checked) q.set('search', '0');
     var v = VIEWS[form.querySelector('[name=view]:checked').value];
     if (v) { q.set('lat', v.lat); q.set('lng', v.lng); q.set('zoom', v.zoom); }
     var s = q.toString();
@@ -119,7 +125,8 @@
     var width = f.responsive.checked ? '100%' : '800';
     var html = '<iframe src="' + url + '" title="Map of bike parking in Guelph" ' +
       'width="' + width + '" height="' + h + '" style="border:0;max-width:100%;" ' +
-      'loading="lazy" allow="geolocation" referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+      'loading="lazy" allow="geolocation; fullscreen" allowfullscreen ' +
+      'referrerpolicy="strict-origin-when-cross-origin"></iframe>';
     code.value = html;
     preview.style.height = h + 'px';
     if (preview.getAttribute('src') !== url) preview.setAttribute('src', url);

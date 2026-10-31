@@ -3,8 +3,9 @@ name: Deploy map to GitHub Pages
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '17 9 * * 1' # Mondays, 09:17 UTC: refresh the OpenStreetMap data
   workflow_dispatch:
-  workflow_call:
 
 permissions:
   contents: read
@@ -23,14 +24,17 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          # Branch head, so a call from update-data.yml includes its new commit.
-          ref: ${{ github.ref }}
+          node-version: 22
+      - name: Download bike parking data from OpenStreetMap
+        run: node scripts/fetch-data.mjs data
       - uses: actions/configure-pages@v5
       - name: Collect site files
         run: |
           mkdir _site
-          cp -r index.html embed.html favicon.svg css js vendor data _site/
+          cp -r index.html embed.html favicon.svg css js data _site/
+          touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
