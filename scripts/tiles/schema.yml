@@ -1,0 +1,399 @@
+schema_name: Guelph cycling base map
+schema_description: Lean OpenStreetMap base map for cycling around Guelph, Ontario.
+attribution: <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>
+examples: schema.spec.yml
+
+args:
+  osm_path:
+    description: Local .osm.pbf to read (never downloaded)
+    default: ontario.osm.pbf
+  minzoom: 10
+  maxzoom: 14
+
+sources:
+  osm:
+    type: osm
+    local_path: '${ args.osm_path }'
+
+definitions:
+  # Values of a tag that count as "true", for bridge/tunnel-style tags.
+  not_no: &not_no [ "no", "0", "false" ]
+
+layers:
+
+# --- water: polygons, one `class` ---------------------------------------------
+- id: water
+  features:
+  - source: osm
+    geometry: polygon
+    min_zoom: 10
+    include_when:
+      natural: water
+      waterway: riverbank
+      landuse: [ reservoir, basin ]
+    exclude_when:
+      water: [ wastewater ]
+    attributes:
+    - key: class
+      value:
+      - if: { water: [ river, canal, stream, oxbow ], waterway: riverbank }
+        value: river
+      - if: { landuse: basin, water: [ basin, stormwater, pond ] }
+        value: pond
+      - else: lake
+  tile_post_process:
+    merge_polygons:
+      min_area: 1
+      min_area_at_max_zoom: 0.25
+      tolerance: 0.25
+      tolerance_at_max_zoom: 0.0625
+
+# --- waterway: centre lines ----------------------------------------------------
+- id: waterway
+  features:
+  - source: osm
+    geometry: line
+    min_zoom:
+      default_value: 12
+      overrides:
+        10: { waterway: river }
+        11: { waterway: canal }
+    include_when:
+      waterway: [ river, stream, canal ]
+    attributes:
+    - key: class
+      type: match_value
+    - key: name
+      min_zoom: 12
+      include_when: { waterway: [ river, canal ] }
+    - key: tunnel
+      value: true
+      include_when: { tunnel: __any__ }
+      exclude_when: { tunnel: *not_no }
+  tile_post_process:
+    merge_line_strings:
+      min_length: 0.5
+      min_length_at_max_zoom: 0
+      tolerance: 0.25
+      tolerance_at_max_zoom: 0.0625
+      buffer: 4
+
+# --- landuse: land use and land cover, one `class` -----------------------------
+- id: landuse
+  features:
+  - source: osm
+    geometry: polygon
+    min_zoom:
+      default_value: 10
+      overrides:
+        12:
+          leisure: [ playground, pitch, track, garden ]
+    include_when:
+      landuse: [ forest, grass, meadow, village_green, cemetery, farmland, orchard, vineyard, farmyard,
+                 industrial, quarry, commercial, retail, residential, recreation_ground ]
+      natural: [ wood, grassland, scrub, heath, wetland ]
+      leisure: [ park, nature_reserve, garden, playground, pitch, track, golf_course ]
+      amenity: [ grave_yard, school, kindergarten, college, university, hospital ]
+    attributes:
+    - key: class
+      # First match wins, so leisure/amenity uses beat the cover under them.
+      value:
+      - if: { leisure: [ park, nature_reserve ] }
+        value: park
+      - if: { leisure: garden }
+        value: garden
+      - if: { leisure: playground }
+        value: playground
+      - if: { leisure: [ pitch, track ] }
+        value: pitch
+      - if: { leisure: golf_course }
+        value: golf_course
+      - if: { landuse: recreation_ground }
+        value: recreation_ground
+      - if: { amenity: [ college, university ] }
+        value: university
+      - if: { amenity: [ school, kindergarten ] }
+        value: school
+      - if: { amenity: hospital }
+        value: hospital
+      - if: { landuse: cemetery, amenity: grave_yard }
+        value: cemetery
+      - if: { landuse: forest, natural: wood }
+        value: wood
+      - if: { natural: wetland }
+        value: wetland
+      - if: { natural: [ scrub, heath ] }
+        value: scrub
+      - if: { landuse: [ grass, meadow, village_green ], natural: grassland }
+        value: grass
+      - if: { landuse: [ farmland, orchard, vineyard, farmyard ] }
+        value: farmland
+      - if: { landuse: [ industrial, quarry ] }
+        value: industrial
+      - if: { landuse: [ commercial, retail ] }
+        value: commercial
+      - if: { landuse: residential }
+        value: residential
+  tile_post_process:
+    merge_polygons:
+      min_area: 4
+      min_area_at_max_zoom: 0.25
+      tolerance: 0.5
+      tolerance_at_max_zoom: 0.0625
+
+# --- building: footprints at z13-14, no attributes ------------------------------
+- id: building
+  features:
+  - source: osm
+    geometry: polygon
+    min_zoom: 13
+    include_when:
+      building: __any__
+    exclude_when:
+      building: *not_no
+  tile_post_process:
+    merge_polygons:
+      min_area: 2
+      min_area_at_max_zoom: 0.125
+      tolerance: 0.25
+      tolerance_at_max_zoom: 0.0625
+
+# --- transportation: roads, paths and rail, with street names ------------------
+- id: transportation
+  features:
+  - source: osm
+    geometry: line
+    min_size: 0
+    min_zoom:
+      default_value: 13
+      overrides:
+        10:
+          highway: [ motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link ]
+          __all__:
+            railway: rail
+            service: ""
+        11:
+          highway: [ tertiary, tertiary_link ]
+        12:
+          highway: [ residential, unclassified, living_street, road, cycleway ]
+          __all__:
+            highway: [ path, footway, bridleway, track ]
+            bicycle: [ designated, "yes", permissive ]
+        14:
+          highway: [ steps ]
+          service: [ driveway, parking_aisle, drive-through ]
+          footway: [ sidewalk, crossing ]
+    include_when:
+      highway: [ motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link,
+                 tertiary, tertiary_link, residential, unclassified, living_street, road, service, track,
+                 cycleway, path, footway, pedestrian, steps, bridleway ]
+      railway: [ rail, light_rail, narrow_gauge ]
+    exclude_when:
+      # Sidewalks and crossings mapped as separate ways are noise unless bikes are allowed on them.
+      __all__:
+        highway: footway
+        footway: [ sidewalk, crossing ]
+        __not__:
+          bicycle: [ "yes", designated, permissive ]
+    attributes:
+    - key: class
+      value:
+      - if: { highway: [ motorway, motorway_link ] }
+        value: motorway
+      - if: { highway: [ trunk, trunk_link ] }
+        value: trunk
+      - if: { highway: [ primary, primary_link ] }
+        value: primary
+      - if: { highway: [ secondary, secondary_link ] }
+        value: secondary
+      - if: { highway: [ tertiary, tertiary_link ] }
+        value: tertiary
+      - if: { highway: [ residential, unclassified, living_street, road ] }
+        value: minor
+      - if: { highway: [ service, track, cycleway, path, footway, pedestrian, steps, bridleway ] }
+        value: '${ feature.tags.highway }'
+      - else: rail
+    - key: link
+      value: true
+      include_when: { highway: "%_link" }
+    - key: service
+      value: true
+      include_when: { __all__: { railway: __any__, service: __any__ } }
+    - key: name
+      min_zoom: 12
+    - key: ref
+      min_zoom: 11
+      include_when: { highway: [ motorway, trunk, primary, secondary ] }
+    # bicycle: yes | designated | dismount | no. Explicit tag first; cycleways default to designated;
+    # access=no/private without a bicycle tag means no.
+    - key: bicycle
+      value:
+      - if: { bicycle: designated }
+        value: designated
+      - if: { bicycle: [ "yes", permissive, destination, customers ] }
+        value: "yes"
+      - if: { bicycle: dismount }
+        value: dismount
+      - if: { bicycle: [ "no", private, use_sidepath ] }
+        value: "no"
+      - if: { highway: cycleway }
+        value: designated
+      - if: { access: [ "no", private ] }
+        value: "no"
+    # bike_lane: on-road cycling infrastructure from cycleway, cycleway:both/left/right (either side).
+    # track > lane > shared > separate (separate = drawn as its own cycleway way).
+    - key: bike_lane
+      include_when:
+        highway: [ motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link,
+                   tertiary, tertiary_link, residential, unclassified, living_street, road, service ]
+      value:
+      - if:
+          cycleway: [ track, opposite_track ]
+          cycleway:both: track
+          cycleway:left: [ track, opposite_track ]
+          cycleway:right: [ track, opposite_track ]
+        value: track
+      - if:
+          cycleway: [ lane, opposite_lane, buffered_lane ]
+          cycleway:both: [ lane, buffered_lane ]
+          cycleway:left: [ lane, opposite_lane, buffered_lane ]
+          cycleway:right: [ lane, opposite_lane, buffered_lane ]
+        value: lane
+      - if:
+          cycleway: [ shared_lane, share_busway, opposite_share_busway, shoulder ]
+          cycleway:both: [ shared_lane, share_busway, shoulder ]
+          cycleway:left: [ shared_lane, share_busway, opposite_share_busway, shoulder ]
+          cycleway:right: [ shared_lane, share_busway, opposite_share_busway, shoulder ]
+        value: shared
+      - if:
+          cycleway: separate
+          cycleway:both: separate
+          cycleway:left: separate
+          cycleway:right: separate
+        value: separate
+    - key: surface
+      value:
+      - if:
+          surface: [ paved, asphalt, concrete, "concrete:plates", "concrete:lanes", paving_stones, "paving_stones:lanes",
+                     sett, cobblestone, unhewn_cobblestone, bricks, metal, wood, chipseal, rubber, tartan ]
+        value: paved
+      - if:
+          surface: [ unpaved, gravel, fine_gravel, compacted, dirt, earth, ground, grass, grass_paver, sand, mud,
+                     pebblestone, woodchips, rock, stone, shells, clay ]
+        value: unpaved
+    - key: oneway
+      type: direction
+      tag_value: oneway
+      min_zoom: 13
+      include_when: { oneway: [ "yes", "1", "true", "-1" ] }
+    # contraflow: bikes may ride against a one-way street.
+    - key: contraflow
+      value: true
+      min_zoom: 13
+      include_when:
+        __all__:
+        - oneway: [ "yes", "1", "true", "-1" ]
+        - oneway:bicycle: "no"
+          cycleway: [ opposite, opposite_lane, opposite_track, opposite_share_busway ]
+          cycleway:left:oneway: [ "no", "-1" ]
+          cycleway:right:oneway: [ "no", "-1" ]
+          cycleway:both:oneway: "no"
+    - key: bridge
+      value: true
+      include_when: { bridge: __any__ }
+      exclude_when: { bridge: *not_no }
+    - key: tunnel
+      value: true
+      include_when: { tunnel: __any__ }
+      exclude_when: { tunnel: *not_no }
+    - key: layer
+      type: integer
+      min_zoom: 13
+      include_when:
+        __all__:
+        - bridge: __any__
+          tunnel: __any__
+        - layer: __any__
+      exclude_when: { layer: "0" }
+  tile_post_process:
+    merge_line_strings:
+      min_length: 0
+      min_length_at_max_zoom: 0
+      tolerance: 0.25
+      tolerance_at_max_zoom: 0.0625
+      buffer: 4
+
+# --- place: settlement and neighbourhood labels --------------------------------
+- id: place
+  features:
+  - source: osm
+    geometry: point
+    min_zoom:
+      default_value: 13
+      overrides:
+        10: { place: [ city, town ] }
+        11: { place: [ village, suburb ] }
+        12: { place: [ hamlet, quarter ] }
+    include_when:
+      __all__:
+      - place: [ city, town, village, suburb, quarter, neighbourhood, hamlet ]
+      - name: __any__
+    attributes:
+    - key: class
+      tag_value: place
+    - key: name
+    # rank: 1 = most important.
+    - key: rank
+      type: integer
+      value:
+      - if: { place: city }
+        value: 1
+      - if: { place: town }
+        value: 2
+      - if: { place: [ village, suburb ] }
+        value: 3
+      - if: { place: [ hamlet, quarter ] }
+        value: 4
+      - else: 5
+
+# --- poi: cycling-relevant points only ----------------------------------------
+- id: poi
+  features:
+  - source: osm
+    geometry: centroid
+    min_zoom:
+      default_value: 13
+      overrides:
+        12: { shop: bicycle }
+    include_when:
+      shop: bicycle
+      amenity: [ bicycle_repair_station, drinking_water, toilets ]
+    exclude_when:
+      access: [ "no", private ]
+    attributes:
+    - key: class
+      value:
+      - if: { shop: bicycle }
+        value: bicycle_shop
+      - if: { amenity: bicycle_repair_station }
+        value: bicycle_repair_station
+      - if: { amenity: drinking_water }
+        value: drinking_water
+      - else: toilets
+    - key: name
+  # Label points for named parks; bigger parks appear earlier.
+  - source: osm
+    geometry: innermost_point
+    min_zoom:
+      default_value: 14
+      overrides:
+        12: "${ feature.area('ha') >= 20.0 }"
+        13: "${ feature.area('ha') >= 3.0 }"
+    include_when:
+      __all__:
+      - leisure: [ park, nature_reserve ]
+      - name: __any__
+    attributes:
+    - key: class
+      value: park
+    - key: name

@@ -1,0 +1,203 @@
+# Run: java -jar planetiler.jar verify scripts/tiles/schema.yml
+examples:
+
+- name: secondary road with a painted lane on one side
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: secondary, name: Gordon Street, cycleway:left: "no", cycleway:right: lane, surface: asphalt }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 10
+    allow_extra_tags: false
+    tags: { class: secondary, name: Gordon Street, bike_lane: lane, surface: paved }
+
+- name: cycleway:both=no gives no bike_lane
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: residential, cycleway:both: "no" }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    allow_extra_tags: false
+    tags: { class: minor }
+
+- name: track beats lane
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: tertiary, cycleway:right: lane, cycleway:left: track }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 11
+    tags: { class: tertiary, bike_lane: track }
+
+- name: one-way street with contraflow for bikes
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: residential, oneway: "yes", oneway:bicycle: "no", bicycle: "yes" }
+  output:
+    layer: transportation
+    geometry: line
+    at_zoom: 14
+    allow_extra_tags: false
+    tags: { class: minor, oneway: 1, contraflow: true, bicycle: "yes" }
+
+- name: cycleway defaults to designated, bridge with layer
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: cycleway, surface: fine_gravel, bridge: "yes", layer: "1" }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    at_zoom: 14
+    allow_extra_tags: false
+    tags: { class: cycleway, bicycle: designated, surface: unpaved, bridge: true, layer: 1 }
+
+- name: designated multi-use path shows at z12
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: footway, bicycle: designated, surface: asphalt }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    tags: { class: footway, bicycle: designated, surface: paved }
+
+- name: trail where bikes are allowed shows at z12
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: path, bicycle: permissive, surface: gravel }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    tags: { class: path, bicycle: "yes", surface: unpaved }
+
+- name: plain footway waits for z13
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: footway }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 13
+    allow_extra_tags: false
+    tags: { class: footway }
+
+- name: plain sidewalk is dropped
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: footway, footway: sidewalk }
+  output: []
+
+- name: private driveway is bicycle=no at z14
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: service, service: driveway, access: private }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 14
+    tags: { class: service, bicycle: "no" }
+
+- name: main rail line
+  input:
+    source: osm
+    geometry: line
+    tags: { railway: rail }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 10
+    allow_extra_tags: false
+    tags: { class: rail }
+
+- name: rail siding
+  input:
+    source: osm
+    geometry: line
+    tags: { railway: rail, service: siding }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 13
+    tags: { class: rail, service: true }
+
+- name: river
+  input:
+    source: osm
+    geometry: line
+    tags: { waterway: river, name: Speed River }
+  output:
+    layer: waterway
+    geometry: line
+    min_zoom: 10
+    at_zoom: 14
+    tags: { class: river, name: Speed River }
+
+- name: lake
+  input:
+    source: osm
+    geometry: polygon
+    tags: { natural: water, water: lake }
+  output:
+    layer: water
+    geometry: polygon
+    tags: { class: lake }
+
+- name: park over grass is park
+  input:
+    source: osm
+    geometry: polygon
+    tags: { leisure: park, landuse: grass }
+  output:
+    layer: landuse
+    geometry: polygon
+    min_zoom: 10
+    tags: { class: park }
+
+- name: bike shop on a node
+  input:
+    source: osm
+    geometry: point
+    tags: { shop: bicycle, name: Speed River Bicycle }
+  output:
+    layer: poi
+    geometry: point
+    min_zoom: 12
+    allow_extra_tags: false
+    tags: { class: bicycle_shop, name: Speed River Bicycle }
+
+- name: building
+  input:
+    source: osm
+    geometry: polygon
+    tags: { building: house }
+  output:
+    layer: building
+    geometry: polygon
+    min_zoom: 13
+
+- name: city label
+  input:
+    source: osm
+    geometry: point
+    tags: { place: city, name: Guelph }
+  output:
+    layer: place
+    geometry: point
+    min_zoom: 10
+    tags: { class: city, name: Guelph, rank: 1 }
