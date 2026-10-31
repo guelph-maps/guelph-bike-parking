@@ -138,6 +138,9 @@
       return groups[k].type.color + ' ' + from + '% ' + at + '%';
     });
     var gradient = 'conic-gradient(' + stops.join(',') + ')';
+    // Covered parking is what people most often look for, so if the group has
+    // a shelter, bike room or lockers, show that icon instead of a plain "P".
+    var shelter = groups.building || groups.shed || groups.lockers;
 
     // Close up, a pin-sized stack with a split-colour body, so it doesn't
     // cover the single pins around it.
@@ -145,7 +148,7 @@
       return L.divIcon({
         className: 'bp-marker-wrap',
         html: '<div class="bp-marker bp-stack bp-mixed" title="' + title + '" style="--c:' + groups[order[0]].type.color +
-          ';background:' + gradient + '">' + (covered ? ROOF : '') + T.svg(T.resolve('other'), 20) +
+          ';background:' + gradient + '">' + (covered ? ROOF : '') + T.svg(shelter ? shelter.type : T.resolve('other'), 20) +
           (counted ? '<span class="bp-badge">' + fmt.format(spaces) + '</span>'
             : '<span class="bp-badge bp-badge-unknown" title="Capacity not recorded">?</span>') + '</div>',
         iconSize: [34, 34],
@@ -224,8 +227,8 @@
     else if (p.covered === 'no') chips.push(['Not covered', '']);
     if (p.fee === 'yes') chips.push(['Fee', 'warn']);
     else if (p.fee === 'no') chips.push(['Free', 'good']);
-    if (p.access === 'private' || p.access === 'customers' || p.access === 'permit' || p.access === 'permissive') {
-      chips.push([{ private: 'Private', customers: 'Customers only', permit: 'Permit needed', permissive: 'Permissive' }[p.access], 'warn']);
+    if (p.access === 'customers' || p.access === 'permit' || p.access === 'permissive') {
+      chips.push([{ customers: 'Customers only', permit: 'Permit needed', permissive: 'Permissive' }[p.access], 'warn']);
     }
     if (p.lit === 'yes') chips.push(['Lit at night', '']);
     if (p.surveillance && p.surveillance !== 'no') chips.push(['Surveillance', '']);
@@ -274,6 +277,7 @@
       el.innerHTML =
         '<button type="button" class="bp-legend-toggle" aria-expanded="false" aria-controls="bp-legend-body">' +
           '<span class="bp-legend-title"><span class="bp-long">Bike parking</span><span class="bp-short">Key</span></span>' +
+          '<span class="bp-legend-filtered" hidden>Filtered</span>' +
           '<span class="bp-legend-total"></span>' +
           '<span class="bp-chevron" aria-hidden="true"></span>' +
         '</button>' +
@@ -354,6 +358,9 @@
         li.querySelector('.bp-type-count').textContent = s ? fmt.format(s.spaces || 0) : '–';
         li.querySelector('.bp-type-count').title = s ? s.n + ' locations, ' + s.spaces + ' known spaces' : '';
       });
+      // Make it obvious when the totals (and the map) leave some parking out.
+      var filtered = coveredOnly || T.list.some(function (t) { return !enabledTypes[t.key]; });
+      this._el.querySelector('.bp-legend-filtered').hidden = !filtered;
       this._el.querySelector('.bp-legend-total').textContent = fmt.format(spaces) + ' spaces';
       this._el.querySelector('.bp-legend-total').title = shown.length + ' locations';
     }
@@ -490,7 +497,7 @@
 
         function localMatches(q) {
           q = q.toLowerCase();
-          return markers.filter(function (m) {
+          return markers.filter(visible).filter(function (m) {
             var p = m.bpProps;
             return (p.name && p.name.toLowerCase().indexOf(q) !== -1) ||
               (p.street && ((p.housenumber || '') + ' ' + p.street).toLowerCase().indexOf(q) !== -1);
@@ -690,6 +697,9 @@
       var stats = {};
       geojson.features.forEach(function (f) {
         var p = f.properties;
+        // Private parking (staff-only cages, residents' rooms) isn't somewhere
+        // a visitor can park, so leave it off the map and out of the totals.
+        if (p.access === 'private' || p.access === 'no') return;
         var type = T.resolve(p.type);
         var latlng = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]);
         var title = type.label + (p.capacity != null ? ', ' + p.capacity + ' spaces' : '');

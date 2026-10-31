@@ -205,6 +205,16 @@ html, body {
   color: var(--bp-muted);
   font-variant-numeric: tabular-nums;
 }
+.bp-legend-filtered {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: var(--bp-accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.bp-legend-filtered:not([hidden]) + .bp-legend-total { margin-left: 0; }
 .bp-chevron {
   width: 8px;
   height: 8px;
