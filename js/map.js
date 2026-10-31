@@ -125,8 +125,11 @@
     ? L.markerClusterGroup({
         iconCreateFunction: clusterIcon,
         showCoverageOnHover: false,
-        maxClusterRadius: function (zoom) { return zoom <= 13 ? 70 : zoom <= 15 ? 55 : 40; },
-        disableClusteringAtZoom: 18,
+        // People use this to check whether a destination has parking, then to
+        // find the rack once they're there. So only group heavily at city
+        // scale; from neighbourhood zoom on, merge just the pins that would sit
+        // on top of each other (icons are 34px), so a strip mall shows each rack.
+        maxClusterRadius: function (zoom) { return zoom <= 12 ? 60 : zoom === 13 ? 45 : zoom === 14 ? 30 : 18; },
         spiderfyOnMaxZoom: true,
         chunkedLoading: true
       })
