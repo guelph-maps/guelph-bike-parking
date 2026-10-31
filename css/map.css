@@ -74,12 +74,31 @@ html, body {
 /* Roof over covered / indoor parking. */
 .bp-roof { position: absolute; top: -11px; left: -2px; }
 
+/* Several nearby spots of one type: the pin with a second one peeking out. */
+.bp-marker.bp-stack {
+  box-shadow: 4px 4px 0 -2px var(--c), 4px 4px 0 0 #fff, 4px 5px 5px rgba(0, 0, 0, .35);
+}
+
+.bp-mixed svg { filter: drop-shadow(0 0 1.5px rgba(15, 23, 42, .9)); }
+
+/* Mixed types: a ring split by type colour around the total. */
 .bp-cluster {
+  position: relative;
+  box-sizing: border-box;
+  padding: 5px;
   border-radius: 50%;
-  background: rgba(15, 118, 110, .92);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+}
+.bp-cluster .bp-roof { top: -13px; left: 50%; margin-left: -13px; }
+.bp-cluster-core {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: rgba(15, 118, 110, .95);
   color: #fff;
-  border: 3px solid rgba(255, 255, 255, .9);
-  box-shadow: 0 0 0 5px rgba(15, 118, 110, .25), 0 2px 6px rgba(0, 0, 0, .3);
+  border: 2px solid #fff;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -210,12 +229,19 @@ html, body {
 .bp-legend-help p > span:first-child { flex: none; width: 30px; display: flex; justify-content: center; }
 .bp-key-badge {
   min-width: 22px; height: 20px; padding: 0 5px; border-radius: 10px; border: 2px solid var(--bp-muted);
-  font: 700 12px/16px var(--bp-font); color: var(--bp-ink); text-align: center; width: auto !important;
+  font: 700 12px/16px var(--bp-font); color: var(--bp-ink); text-align: center;
 }
 .bp-key-roof .bp-roof { position: static; }
+.bp-key-stack .bp-marker {
+  width: 22px; height: 22px; border-width: 1.5px; box-shadow: 3px 3px 0 -1.5px var(--c), 3px 3px 0 0 #fff, 2px 3px 3px rgba(0, 0, 0, .3);
+}
 .bp-key-cluster {
-  width: 26px !important; height: 26px; border-radius: 50%; background: rgba(15, 118, 110, .92); color: #fff;
-  align-items: center; font: 700 11px var(--bp-font); box-shadow: 0 0 0 3px rgba(15, 118, 110, .25);
+  display: flex; width: 26px; height: 26px; box-sizing: border-box; padding: 3px; border-radius: 50%;
+  background: conic-gradient(#1d4ed8 0 60%, #7c3aed 60% 85%, #94a3b8 85%);
+}
+.bp-key-cluster b {
+  flex: 1; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid #fff;
+  background: rgba(15, 118, 110, .95); color: #fff; font: 700 9px var(--bp-font);
 }
 
 .bp-types { list-style: none; margin: 0; padding: 0; }

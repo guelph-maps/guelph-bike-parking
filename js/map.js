@@ -87,36 +87,81 @@
     '<path d="M3 9l10-6.5L23 9" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>' +
     '<path d="M3 9l10-6.5L23 9" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
-  function markerIcon(type, capacity, covered) {
+  function markerIcon(type, capacity, covered, stack, title) {
     var badge = capacity == null
       ? '<span class="bp-badge bp-badge-unknown" title="Capacity not recorded">?</span>'
-      : '<span class="bp-badge">' + capacity + '</span>';
+      : '<span class="bp-badge">' + fmt.format(capacity) + '</span>';
     return L.divIcon({
       className: 'bp-marker-wrap',
-      html: '<div class="bp-marker" style="--c:' + type.color + '">' + (covered ? ROOF : '') + T.svg(type, 20) + badge + '</div>',
+      html: '<div class="bp-marker' + (stack ? ' bp-stack' : '') + '" style="--c:' + type.color + '"' +
+        (title ? ' title="' + title + '"' : '') + '>' + (covered ? ROOF : '') + T.svg(type, 20) + badge + '</div>',
       iconSize: [34, 34],
       iconAnchor: [17, 17],
       popupAnchor: [0, -16]
     });
   }
 
+  function plural(n, word) { return fmt.format(n) + ' ' + word + (n === 1 ? '' : 's'); }
+
   function clusterIcon(cluster) {
     var children = cluster.getAllChildMarkers();
-    var spaces = 0, unknown = 0;
+    var spaces = 0, counted = 0, covered = true, groups = {}, order = [];
     children.forEach(function (m) {
-      if (m.options.capacity == null) unknown++;
-      else spaces += m.options.capacity;
+      var k = m.bpType.key;
+      if (!groups[k]) { groups[k] = { type: m.bpType, sites: 0, spaces: 0 }; order.push(k); }
+      groups[k].sites++;
+      // Spots without a recorded count are left out of the totals.
+      if (m.options.capacity != null) { spaces += m.options.capacity; groups[k].spaces += m.options.capacity; counted++; }
+      if (!isCovered(m.bpProps)) covered = false;
     });
-    // Show total known spaces; fall back to the number of locations when none
-    // of them has a count.
-    var label = spaces ? fmt.format(spaces) : String(children.length);
-    var unit = spaces ? (spaces === 1 && !unknown ? 'space' : 'spaces') : 'sites';
-    var size = label.length >= 4 ? 54 : label.length === 3 ? 48 : 42;
-    var title = children.length + ' locations' + (spaces ? ', ' + fmt.format(spaces) + (unknown ? '+' : '') + ' bike spaces' : '');
+    // Biggest share first, "type not recorded" last.
+    order.sort(function (a, b) {
+      return (a === 'unknown') - (b === 'unknown') || groups[b].sites - groups[a].sites;
+    });
+    var title = esc(plural(children.length, 'location') + (counted ? ', ' + plural(spaces, 'bike space') : '') + ': ' +
+      order.map(function (k) {
+        var g = groups[k];
+        return g.type.label + ' ×' + g.sites + (g.spaces ? ' (' + fmt.format(g.spaces) + ')' : '');
+      }).join(', '));
+
+    // All the same kind (spots whose type isn't recorded go along with
+    // anything): draw it as that type's pin, stacked, with the spaces added up.
+    var known = order.filter(function (k) { return k !== 'unknown'; });
+    if (known.length <= 1) {
+      return markerIcon(groups[order[0]].type, counted ? spaces : null, covered, true, title);
+    }
+
+    // Mixed: colour by the share of each type.
+    var at = 0, stops = order.map(function (k) {
+      var from = at;
+      at += groups[k].sites / children.length * 100;
+      return groups[k].type.color + ' ' + from + '% ' + at + '%';
+    });
+    var gradient = 'conic-gradient(' + stops.join(',') + ')';
+
+    // Close up, a pin-sized stack with a split-colour body, so it doesn't
+    // cover the single pins around it.
+    if ((cluster._zoom != null ? cluster._zoom : map.getZoom()) >= 15) {
+      return L.divIcon({
+        className: 'bp-marker-wrap',
+        html: '<div class="bp-marker bp-stack bp-mixed" title="' + title + '" style="--c:' + groups[order[0]].type.color +
+          ';background:' + gradient + '">' + (covered ? ROOF : '') + T.svg(T.resolve('other'), 20) +
+          (counted ? '<span class="bp-badge">' + fmt.format(spaces) + '</span>'
+            : '<span class="bp-badge bp-badge-unknown" title="Capacity not recorded">?</span>') + '</div>',
+        iconSize: [34, 34],
+        iconAnchor: [17, 17]
+      });
+    }
+
+    // Further out, the total spaces with a ring showing the mix.
+    var label = counted ? fmt.format(spaces) : String(children.length);
+    var unit = counted ? (spaces === 1 ? 'space' : 'spaces') : 'sites';
+    var size = 36 + 5 * label.length;
     return L.divIcon({
       className: 'bp-cluster-wrap',
-      html: '<div class="bp-cluster" title="' + title + '" style="width:' + size + 'px;height:' + size + 'px">' +
-        '<b>' + label + '</b><span>' + unit + '</span></div>',
+      html: '<div class="bp-cluster" title="' + title + '" style="width:' + size + 'px;height:' + size + 'px;' +
+        'background:' + gradient + '">' + (covered ? ROOF : '') +
+        '<div class="bp-cluster-core"><b>' + label + '</b><span>' + unit + '</span></div></div>',
       iconSize: [size, size]
     });
   }
@@ -129,7 +174,7 @@
         // find the rack once they're there. So only group heavily at city
         // scale; from neighbourhood zoom on, merge just the pins that would sit
         // on top of each other (icons are 34px), so a strip mall shows each rack.
-        maxClusterRadius: function (zoom) { return zoom <= 12 ? 60 : zoom === 13 ? 45 : zoom === 14 ? 30 : 18; },
+        maxClusterRadius: function (zoom) { return zoom <= 12 ? 60 : zoom === 13 ? 45 : zoom === 14 ? 34 : 18; },
         spiderfyOnMaxZoom: true,
         chunkedLoading: true
       })
@@ -234,9 +279,11 @@
         '</button>' +
         '<div class="bp-legend-body" id="bp-legend-body">' +
           '<div class="bp-legend-help">' +
-            '<p><span class="bp-key-badge">8</span><span>how many bikes fit (<b>?</b> = not recorded yet)</span></p>' +
+            '<p><span><span class="bp-key-badge">8</span></span><span>how many bikes fit (<b>?</b> = not recorded yet)</span></p>' +
             '<p><span class="bp-key-roof">' + ROOF + '</span><span>covered or indoor</span></p>' +
-            '<p><span class="bp-key-cluster">42</span><span>spaces nearby added up; zoom in for each spot</span></p>' +
+            '<p><span class="bp-key-stack"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + T.svg(T.list[0], 14) + '</span></span>' +
+              '<span>several spots of one type, spaces added up</span></p>' +
+            '<p><span><span class="bp-key-cluster"><b>42</b></span></span><span>mixed types nearby, colours show the mix; zoom in for each spot</span></p>' +
           '</div>' +
           '<ul class="bp-types"></ul>' +
           '<label class="bp-filter"><input type="checkbox" class="bp-covered"> Covered or indoor only</label>' +
