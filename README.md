@@ -42,7 +42,7 @@ URL parameters:
 | `cluster=0` | Show every location instead of grouping |
 | `legend` | `open`, `closed` or `0` (hidden) |
 | `basemap=cycle` | Start with the CyclOSM cycling base map |
-| `routes=1` | Show signed cycling routes (Waymarked Trails) on top |
+| `routes=1` | Show signed cycling routes from OpenStreetMap on top |
 | `search=0` | Hide the address search box |
 | `embed` | `1` forces the compact layout, `0` turns it off inside an iframe |
 

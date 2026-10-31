@@ -30,9 +30,9 @@ var APP_FILES = [
   'vendor/leaflet.markercluster/MarkerCluster.css',
   'vendor/leaflet.markercluster/leaflet.markercluster.js'
 ];
-var DATA_FILES = ['data/bike-parking.geojson', 'data/guelph-boundary.geojson'];
+var DATA_FILES = ['data/bike-parking.geojson', 'data/guelph-boundary.geojson', 'data/cycle-routes.geojson'];
 
-var TILE_HOSTS = /(^|\.)(tile\.openstreetmap\.org|tile-cyclosm\.openstreetmap\.fr|tile\.waymarkedtrails\.org)$/;
+var TILE_HOSTS = /(^|\.)(tile\.openstreetmap\.org|tile-cyclosm\.openstreetmap\.fr)$/;
 
 self.addEventListener('install', function (event) {
   event.waitUntil(Promise.all([

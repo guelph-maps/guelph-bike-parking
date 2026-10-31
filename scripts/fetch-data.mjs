@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Downloads bicycle parking in Guelph, Ontario from OpenStreetMap (via the
-// Overpass API) plus the city boundary (via Nominatim), and writes the trimmed
-// GeoJSON files used by the map.
+// Downloads bicycle parking and signed cycling routes in Guelph, Ontario from
+// OpenStreetMap (via the Overpass API) plus the city boundary (via Nominatim),
+// and writes the trimmed GeoJSON files used by the map.
 //
 //   node scripts/fetch-data.mjs [output-dir]
 //
@@ -19,6 +19,10 @@ const BOUNDARY_URL = 'https://nominatim.openstreetmap.org/lookup?osm_ids=R748614
 
 // south, west, north, east — covers the City of Guelph limits.
 const BBOX = [43.475, -80.335, 43.605, -80.140];
+
+// Routes are clipped to the base map's extent (west, south, east north in
+// scripts/tiles: -80.40, 43.44, -80.08, 43.64), so long trails stay small.
+const MAP_BBOX = [43.44, -80.40, 43.64, -80.08];
 
 const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
@@ -55,7 +59,11 @@ const KEEP = {
   'survey:date': 'survey_date',
 };
 
-async function fetchOverpass() {
+const ROUTES_QUERY = `[out:json][timeout:60];
+relation["route"="bicycle"](${BBOX.join(',')});
+out geom(${MAP_BBOX.join(',')});`;
+
+async function fetchOverpass(query = QUERY) {
   let lastError;
   // Two rounds over the mirrors; a healthy server answers this query in seconds.
   for (let attempt = 1; attempt <= 2; attempt++) {
@@ -67,7 +75,7 @@ async function fetchOverpass() {
             'Content-Type': 'application/x-www-form-urlencoded',
             'User-Agent': USER_AGENT,
           },
-          body: new URLSearchParams({ data: QUERY }),
+          body: new URLSearchParams({ data: query }),
           signal: AbortSignal.timeout(60_000),
         });
         if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
@@ -146,7 +154,48 @@ function inBoundary(point, geometry) {
   return polygons.some((rings) => inPolygon(point, rings));
 }
 
-const [data, boundary] = await Promise.all([fetchOverpass(), fetchBoundary()]);
+// Each route becomes one MultiLineString of its member ways, clipped to the map.
+function toRoute(rel) {
+  const tags = rel.tags || {};
+  const lines = (rel.members || [])
+    .filter((m) => m.type === 'way' && Array.isArray(m.geometry))
+    .flatMap((m) => splitAtGaps(m.geometry))
+    .filter((line) => line.length >= 2);
+  if (!lines.length) return null;
+  const props = { osm: `relation/${rel.id}`, network: tags.network || 'lcn' };
+  for (const key of ['name', 'ref', 'colour', 'operator', 'website']) if (tags[key]) props[key] = tags[key];
+  return { type: 'Feature', geometry: { type: 'MultiLineString', coordinates: lines }, properties: props };
+}
+
+// Clipped geometry marks points outside the clip box as null; split there.
+function splitAtGaps(points) {
+  const out = [[]];
+  for (const p of points) {
+    if (p && p.lat != null) out[out.length - 1].push([+p.lon.toFixed(6), +p.lat.toFixed(6)]);
+    else if (out[out.length - 1].length) out.push([]);
+  }
+  return out;
+}
+
+async function writeRoutes() {
+  try {
+    const json = await fetchOverpass(ROUTES_QUERY);
+    const features = json.elements.map(toRoute).filter(Boolean)
+      .sort((a, b) => a.properties.osm.localeCompare(b.properties.osm));
+    if (!features.length) throw new Error('no routes with geometry in the response');
+    await mkdir(OUT_DIR, { recursive: true });
+    await writeFile(join(OUT_DIR, 'cycle-routes.geojson'), JSON.stringify({
+      type: 'FeatureCollection',
+      metadata: { source: 'OpenStreetMap contributors', license: 'ODbL-1.0', osm_base: json.osm3s?.timestamp_osm_base ?? null },
+      features,
+    }) + '\n');
+    console.log(`Wrote ${features.length} cycling routes to ${OUT_DIR}/`);
+  } catch (err) {
+    console.warn(`Cycling routes unavailable, keeping the existing file: ${err.message}`);
+  }
+}
+
+const [data, boundary] = await Promise.all([fetchOverpass(), fetchBoundary(), writeRoutes()]);
 const features = data.elements
   .map(toFeature)
   .filter(Boolean)

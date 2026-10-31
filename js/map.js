@@ -4,6 +4,7 @@
   var T = window.BIKE_PARKING_TYPES;
   var DATA_URL = 'data/bike-parking.geojson';
   var BOUNDARY_URL = 'data/guelph-boundary.geojson';
+  var ROUTES_URL = 'data/cycle-routes.geojson';
   var REPO_URL = 'https://github.com/guelph-maps/guelph-bike-parking';
   var SEARCH_BBOX = '-80.335,43.475,-80.140,43.605'; // west,south,east,north
   var GUELPH = [43.5448, -80.2482];
@@ -63,14 +64,7 @@
   (params.get('basemap') === 'cycle' ? baseLayers['Cycling map'] : baseLayers['Street map']).addTo(map);
   map.attributionControl.setPrefix(false);
 
-  var overlays = {
-    'Cycling routes': L.tileLayer('https://tile.waymarkedtrails.org/cycling/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      opacity: 0.8,
-      crossOrigin: 'anonymous',
-      attribution: 'Routes: <a href="https://cycling.waymarkedtrails.org" target="_blank" rel="noopener">Waymarked Trails</a>'
-    })
-  };
+  var overlays = { 'Cycling routes': routesLayer() };
   if (params.get('routes') === '1') overlays['Cycling routes'].addTo(map);
 
   var initialView = readInitialView();
@@ -613,6 +607,39 @@
       }
     });
     new Locate().addTo(map);
+  }
+
+  // Signed cycling routes from OpenStreetMap (route=bicycle relations), loaded
+  // the first time the overlay is switched on.
+  function routesLayer() {
+    var NETWORKS = {
+      ncn: ['#dc2626', 'National route'],
+      rcn: ['#9333ea', 'Regional route'],
+      lcn: ['#2563eb', 'Local route']
+    };
+    var routes = L.geoJSON(null, {
+      style: function (f) {
+        return { color: (NETWORKS[f.properties.network] || NETWORKS.lcn)[0], weight: 5, opacity: 0.6, lineCap: 'round' };
+      },
+      onEachFeature: function (f, l) {
+        var p = f.properties;
+        var kind = (NETWORKS[p.network] || NETWORKS.lcn)[1];
+        l.bindPopup('<div class="bp-popup"><strong>' + esc(p.name || p.ref || 'Cycling route') + '</strong>' +
+          '<div class="bp-sub">' + kind + (p.ref && p.name ? ' · ' + esc(p.ref) : '') + '</div>' +
+          '<div class="bp-links">' + (p.website ? link(p.website, 'Website') : '') +
+          link('https://www.openstreetmap.org/' + p.osm, 'Details / fix') + '</div></div>');
+      }
+    });
+    var loaded = false;
+    routes.on('add', function () {
+      if (loaded) return;
+      loaded = true;
+      fetch(ROUTES_URL)
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (geojson) { if (geojson) routes.addData(geojson); })
+        .catch(function () { loaded = false; });
+    });
+    return routes;
   }
 
   // ---- View state --------------------------------------------------------------
