@@ -82,7 +82,7 @@ the data file from `file://`.
 ## Deploying
 
 `.github/workflows/deploy.yml` publishes the site to GitHub Pages on every push to
-`main`, every Monday, and on demand (Actions → Deploy map to GitHub Pages → Run workflow).
+the default branch, every Monday, and on demand (Actions → Deploy map to GitHub Pages → Run workflow).
 One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
 Leaflet 1.9.4 and Leaflet.markercluster 1.5.3 load from unpkg, pinned with
