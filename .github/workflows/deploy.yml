@@ -34,6 +34,51 @@ jobs:
         run: node scripts/fetch-data.mjs data
         timeout-minutes: 6
         continue-on-error: true
+      # The bike base map is rebuilt once a month (or when the schema changes)
+      # from Geofabrik's Ontario extract; other deploys reuse the cached file.
+      - name: Pick this month's tile cache key
+        id: month
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+      - name: Restore base map tiles
+        id: tiles
+        uses: actions/cache/restore@v4
+        with:
+          path: build/guelph.pmtiles
+          key: tiles-${{ hashFiles('scripts/tiles/schema.yml', 'scripts/build-tiles.mjs') }}-${{ steps.month.outputs.month }}
+          restore-keys: |
+            tiles-${{ hashFiles('scripts/tiles/schema.yml', 'scripts/build-tiles.mjs') }}-
+            tiles-
+      - uses: actions/setup-java@v4
+        if: steps.tiles.outputs.cache-hit != 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Build base map tiles
+        id: build-tiles
+        if: steps.tiles.outputs.cache-hit != 'true'
+        # On failure, publish the older tiles restored above (if any).
+        continue-on-error: true
+        timeout-minutes: 20
+        env:
+          PLANETILER_JAR: build/planetiler.jar
+          PLANETILER_JAVA_OPTS: -Xmx6g
+        run: |
+          mkdir -p build
+          [ -f build/guelph.pmtiles ] && cp build/guelph.pmtiles build/previous.pmtiles
+          curl -sSfL -o build/planetiler.jar https://github.com/onthegomap/planetiler/releases/download/v0.10.2/planetiler.jar
+          echo "f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d  build/planetiler.jar" | sha256sum -c -
+          curl -sSfL -o build/ontario.osm.pbf https://download.geofabrik.de/north-america/canada/ontario-latest.osm.pbf
+          if ! node scripts/build-tiles.mjs build/ontario.osm.pbf; then
+            [ -f build/previous.pmtiles ] && mv build/previous.pmtiles build/guelph.pmtiles
+            exit 1
+          fi
+          rm -f build/ontario.osm.pbf build/previous.pmtiles
+      - name: Save base map tiles
+        if: steps.build-tiles.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          path: build/guelph.pmtiles
+          key: ${{ steps.tiles.outputs.cache-primary-key }}
       - uses: actions/configure-pages@v5
       - name: Collect site files
         run: |
@@ -41,6 +86,8 @@ jobs:
           cp -r index.html embed.html favicon.svg manifest.webmanifest sw.js icons vendor css js data _site/
           # A new cache name per release, so phones pick up the new app files.
           sed -i "s/__BUILD__/${GITHUB_SHA::12}-${GITHUB_RUN_NUMBER}/" _site/sw.js
+          # Without tiles the map falls back to OpenStreetMap's street map.
+          if [ -f build/guelph.pmtiles ]; then node scripts/publish-tiles.mjs _site/tiles; fi
           touch _site/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

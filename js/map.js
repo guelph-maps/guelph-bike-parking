@@ -18,7 +18,7 @@
   //   covered=1           only show covered / indoor parking
   //   cluster=0           show every location, never group them
   //   legend=open|closed|0
-  //   basemap=cycle       start on the CyclOSM base map
+  //   basemap=street      start on OpenStreetMap's street map (online only)
   //   routes=1            show signed cycling routes on top
   //   search=0            hide the address search box
   var params = new URLSearchParams(location.search);
@@ -51,18 +51,26 @@
   }
 
   var osmAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
-  var baseLayers = {
-    'Street map': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, crossOrigin: 'anonymous', attribution: osmAttribution
-    }),
-    'Cycling map': L.tileLayer('https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      crossOrigin: 'anonymous',
-      attribution: '<a href="https://www.cyclosm.org" target="_blank" rel="noopener">CyclOSM</a> | ' + osmAttribution
-    })
-  };
-  (params.get('basemap') === 'cycle' ? baseLayers['Cycling map'] : baseLayers['Street map']).addTo(map);
+  // "Bike map" is ours (js/basemap.js, js/style.js) and works offline; the
+  // street map is OpenStreetMap's own tiles, kept only as you browse.
+  var bikeMap = L.maplibreGL({ style: window.bikeStyle(BikeBasemap.url), attribution: osmAttribution });
+  var streetMap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, crossOrigin: 'anonymous', attribution: osmAttribution
+  });
+  var baseLayers = { 'Bike map': bikeMap, 'Street map': streetMap };
+  (params.get('basemap') === 'street' ? streetMap : bikeMap).addTo(map);
   map.attributionControl.setPrefix(false);
+
+  // Save the whole map on the device, except inside other sites' pages (each
+  // embedding site would keep its own copy) or when the phone asks to save data.
+  var saveData = navigator.connection && navigator.connection.saveData;
+  BikeBasemap.start({ autoSave: !embed && !saveData });
+  BikeBasemap.onChange(function (s) {
+    if (s.status === 'unavailable' && map.hasLayer(bikeMap)) {
+      map.removeLayer(bikeMap);
+      streetMap.addTo(map);
+    }
+  });
 
   var overlays = { 'Cycling routes': routesLayer() };
   if (params.get('routes') === '1') overlays['Cycling routes'].addTo(map);
@@ -692,12 +700,63 @@
           link('https://www.openstreetmap.org/edit#map=17/' + map.getCenter().lat.toFixed(5) + '/' + map.getCenter().lng.toFixed(5), 'add new parking') +
           '. Not a mapper? ' + link(REPO_URL + '/issues/new?title=' + encodeURIComponent('Bike parking correction'), 'Report it here') +
           '. Adding the number of spaces helps most.</p>' +
+        '<h3>Using it without signal</h3>' +
+        '<div class="bp-offline-box"></div>' +
         '<p class="bp-about-foot">Map data &copy; OpenStreetMap contributors (ODbL). ' +
           (embed ? '' : '<a href="embed.html">Embed this map</a> · ') + link(REPO_URL, 'Source code') + '</p>' +
       '</div>';
+    renderOfflineBox(BikeBasemap.state());
     if (about.showModal) about.showModal();
     else about.setAttribute('open', '');
   }
+
+  function renderOfflineBox(s) {
+    var box = about && about.querySelector('.bp-offline-box');
+    if (!box) return;
+    function mb(bytes) { return bytes ? ' (' + Math.max(1, Math.round(bytes / 1048576)) + ' MB)' : ''; }
+    function day(d) {
+      return d ? new Date(d + 'T12:00:00Z').toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
+    }
+    var size = s.info ? mb(s.info.bytes) : '';
+    var html;
+    if (s.status === 'downloading') {
+      html = '<p>Saving the map… ' + Math.round(s.progress * 100) + '%</p>' +
+        '<progress max="1" value="' + s.progress + '"></progress>';
+    } else if (s.status === 'saved') {
+      html = '<p>The whole Guelph map is saved on this device' + mb(s.saved && s.saved.bytes) +
+        (s.saved && s.saved.date ? ', street data from ' + day(s.saved.date) : '') +
+        ', so it works with no signal.</p>' +
+        '<button type="button" class="bp-link-btn" data-act="remove">Remove saved map</button>';
+    } else if (s.status === 'outdated') {
+      html = '<p>A saved map is on this device' + (s.saved && s.saved.date ? ' (street data from ' + day(s.saved.date) + ')' : '') +
+        '. A newer one is available.</p><button type="button" data-act="save">Update saved map' + size + '</button>';
+    } else if (s.status === 'online') {
+      html = '<p>Save the whole Guelph map on this device so it works with no signal. Parking data is always kept.</p>' +
+        '<button type="button" data-act="save">Save map for offline' + size + '</button>';
+    } else if (s.status === 'unavailable') {
+      html = '<p>The bike map can’t be reached right now, so you’re seeing the street map.</p>';
+    } else {
+      html = '<p>Checking for a saved map…</p>';
+    }
+    if (s.error && s.status !== 'unavailable') html += '<p class="bp-offline-error">Last attempt failed: ' + esc(s.error) + '. Try again on Wi-Fi.</p>';
+    var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var installed = navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+    if (ios && !installed && !embed) {
+      html += '<p class="bp-offline-hint">On iPhone and iPad, tap Share → <b>Add to Home Screen</b>. Otherwise Safari clears the saved map after about a week without a visit.</p>';
+    }
+    box.innerHTML = html;
+    var btn = box.querySelector('[data-act]');
+    if (btn) btn.addEventListener('click', function () {
+      if (btn.dataset.act === 'save') {
+        // Ask the browser not to clear the map when storage runs low.
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+        BikeBasemap.save();
+      } else {
+        BikeBasemap.remove();
+      }
+    });
+  }
+  BikeBasemap.onChange(function (s) { if (about && about.open) renderOfflineBox(s); });
 
   // ---- Offline -----------------------------------------------------------------
   // The service worker keeps the app, the data and viewed map tiles, so the map

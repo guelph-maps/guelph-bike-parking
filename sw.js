@@ -3,7 +3,8 @@
 // when a saved copy exists:
 //   - the app itself: precached per release, served from cache
 //   - parking data: served from cache at once, refreshed in the background
-//   - map tiles: kept as you browse (capped), served from cache first
+//   - the bike base map: one file the page saves itself (js/basemap.js)
+//   - street map tiles: kept as you browse (capped), served from cache first
 // The deploy workflow replaces __BUILD__ with the commit, so each release gets
 // a fresh app cache; data and tiles carry over between releases.
 
@@ -19,6 +20,8 @@ var APP_FILES = [
   'index.html',
   'css/map.css',
   'js/types.js',
+  'js/basemap.js',
+  'js/style.js',
   'js/map.js',
   'favicon.svg',
   'manifest.webmanifest',
@@ -28,11 +31,19 @@ var APP_FILES = [
   'vendor/leaflet/leaflet.css',
   'vendor/leaflet/leaflet.js',
   'vendor/leaflet.markercluster/MarkerCluster.css',
-  'vendor/leaflet.markercluster/leaflet.markercluster.js'
-];
+  'vendor/leaflet.markercluster/leaflet.markercluster.js',
+  'vendor/maplibre-gl/maplibre-gl.css',
+  'vendor/maplibre-gl/maplibre-gl.js',
+  'vendor/maplibre-gl-leaflet/leaflet-maplibre-gl.js',
+  'vendor/pmtiles/pmtiles.js'
+].concat(['Regular', 'Medium', 'Italic'].reduce(function (all, weight) {
+  return all.concat(['0-255', '256-511', '8192-8447'].map(function (range) {
+    return 'vendor/fonts/Noto Sans ' + weight + '/' + range + '.pbf';
+  }));
+}, []));
 var DATA_FILES = ['data/bike-parking.geojson', 'data/guelph-boundary.geojson', 'data/cycle-routes.geojson'];
 
-var TILE_HOSTS = /(^|\.)(tile\.openstreetmap\.org|tile-cyclosm\.openstreetmap\.fr)$/;
+var TILE_HOSTS = /(^|\.)(tile\.openstreetmap\.org)$/;
 
 self.addEventListener('install', function (event) {
   event.waitUntil(Promise.all([
@@ -43,7 +54,10 @@ self.addEventListener('install', function (event) {
     caches.open(DATA_CACHE).then(function (cache) {
       return Promise.all(DATA_FILES.map(function (u) {
         return cache.match(u).then(function (hit) { return hit || cache.add(new Request(u, { cache: 'reload' })); });
-      }));
+      }).concat(
+        // Which bike map file is current; optional, so a missing one doesn't block installing.
+        cache.add(new Request('tiles/tiles.json', { cache: 'reload' })).catch(function () {})
+      ));
     })
   ]).then(function () { return self.skipWaiting(); }));
 });
@@ -67,7 +81,8 @@ self.addEventListener('fetch', function (event) {
   }
   if (url.origin !== self.location.origin) return; // search etc. go straight to the network
 
-  if (/\/data\/[^/]+\.geojson$/.test(url.pathname)) {
+  if (/\.pmtiles$/.test(url.pathname)) return; // range requests; js/basemap.js keeps the file
+  if (/\/data\/[^/]+\.geojson$|\/tiles\/tiles\.json$/.test(url.pathname)) {
     event.respondWith(staleWhileRevalidate(event, req));
     return;
   }
@@ -92,7 +107,7 @@ function withTimeout(promise, ms) {
 
 function staleWhileRevalidate(event, req) {
   return caches.open(DATA_CACHE).then(function (cache) {
-    var key = new URL(req.url).pathname.replace(/^.*\/data\//, 'data/');
+    var key = req.url.split('?')[0];
     return cache.match(key).then(function (hit) {
       var update = fetch(req, { cache: 'no-cache' }).then(function (res) {
         if (res.ok) return cache.put(key, res.clone()).then(function () { return res; });
