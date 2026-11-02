@@ -87,9 +87,10 @@
   if (params.get('search') !== '0') addSearchControl();
 
   // ---- Markers ---------------------------------------------------------------
-  var ROOF = '<svg class="bp-roof" viewBox="0 0 26 11" width="26" height="11" aria-hidden="true">' +
-    '<path d="M3 9l10-6.5L23 9" fill="none" stroke="#fff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>' +
-    '<path d="M3 9l10-6.5L23 9" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  // A roof in the pin's colour, resting on the circle so the pin reads as a
+  // little house. The viewBox is in the pin's own pixels, peak over its centre.
+  var ROOF = '<svg class="bp-roof" viewBox="-2 -9 38 19" width="38" height="19" aria-hidden="true">' +
+    '<path d="M1.5 8L17-5l15.5 13"/><path d="M1.5 8L17-5l15.5 13"/></svg>';
 
   function markerIcon(type, capacity, covered, stack, title) {
     var badge = capacity == null
@@ -101,7 +102,8 @@
         (title ? ' title="' + title + '"' : '') + '>' + (covered ? ROOF : '') + T.svg(type, 20) + badge + '</div>',
       iconSize: [34, 34],
       iconAnchor: [17, 17],
-      popupAnchor: [0, -16]
+      // Open the popup above the roof rather than over it.
+      popupAnchor: [0, covered ? -24 : -16]
     });
   }
 
@@ -288,7 +290,8 @@
         '<div class="bp-legend-body" id="bp-legend-body">' +
           '<div class="bp-legend-help">' +
             '<p><span><span class="bp-key-badge">8</span></span><span>how many bikes fit (<b>?</b> = not recorded yet)</span></p>' +
-            '<p><span class="bp-key-roof">' + ROOF + '</span><span>covered or indoor</span></p>' +
+            '<p><span class="bp-key-roof"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + ROOF +
+              T.svg(T.list[0], 14) + '</span></span><span>covered or indoor</span></p>' +
             '<p><span class="bp-key-stack"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + T.svg(T.list[0], 14) + '</span></span>' +
               '<span>several spots of one type, spaces added up</span></p>' +
             '<p><span><span class="bp-key-cluster"><b>42</b></span></span><span>mixed types nearby, colours show the mix; zoom in for each spot</span></p>' +
@@ -932,7 +935,8 @@
         if (p.access === 'private' || p.access === 'no') return;
         var type = T.resolve(p.type);
         var latlng = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]);
-        var title = type.label + (p.capacity != null ? ', ' + p.capacity + ' spaces' : '');
+        var title = type.label + (p.capacity != null ? ', ' + plural(p.capacity, 'space') : '') +
+          (p.indoor === 'yes' ? ', indoor' : isCovered(p) ? ', covered' : '');
         var m = L.marker(latlng, {
           icon: markerIcon(type, p.capacity, isCovered(p)),
           capacity: p.capacity,
