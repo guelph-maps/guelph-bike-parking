@@ -58,7 +58,7 @@ window.BIKE_PARKING_TYPES = (function () {
     // Maps any raw OSM value to one of the keys above.
     resolve: function (raw) {
       if (!raw || raw === 'unknown') return byKey.unknown;
-      if (raw === 'anchors' || raw === 'safe_loops' || raw === 'wide_stands') return byKey.stands;
+      if (raw === 'anchors' || raw === 'safe_loops' || raw === 'wide_stands' || raw === 'wave') return byKey.stands;
       if (raw === 'handlebar_holder' || raw === 'crossbar') return byKey.rack;
       return byKey[raw] || byKey.other;
     },
