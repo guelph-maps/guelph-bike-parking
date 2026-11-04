@@ -40,7 +40,7 @@ URL parameters:
 | Parameter | Effect |
 | --- | --- |
 | `lat`, `lng`, `zoom` | Starting view, e.g. `?lat=43.5446&lng=-80.2489&zoom=16` |
-| `types` | Only these types, comma-separated: `stands`, `rack`, `bollard`, `wall_loops`, `ground_slots`, `shed`, `lockers`, `building`, `two-tier`, `other`, `unknown` |
+| `types` | Only these types, comma-separated: `stands`, `wave`, `rack`, `bollard`, `wall_loops`, `ground_slots`, `shed`, `lockers`, `building`, `two-tier`, `other`, `unknown` |
 | `covered=1` | Only covered or indoor parking |
 | `cluster=0` | Show every location instead of grouping |
 | `legend` | `open`, `closed` or `0` (hidden) |
@@ -68,7 +68,7 @@ The best way to fix wrong or missing parking is to edit OpenStreetMap: every pop
 has a "Details / fix" link. The tags the map uses:
 
 - `amenity=bicycle_parking`
-- `bicycle_parking=*` → icon (`stands`, `rack`, `wall_loops`, `bollard`, `shed`, `lockers`, …)
+- `bicycle_parking=*` → icon (`stands`, `wave`, `rack`, `wall_loops`, `bollard`, `shed`, `lockers`, …)
 - `capacity=*` → number on the badge (`?` when missing)
 - `covered`, `indoor`, `fee`, `access`, `lit`, `operator`, `name`, `mapillary`
 

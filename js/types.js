@@ -9,6 +9,10 @@ window.BIKE_PARKING_TYPES = (function () {
       color: '#1d4ed8', glyph: 'M3 20.5h18M7 20.5V10a5 5 0 0 1 10 0v10.5'
     },
     {
+      key: 'wave', label: 'Wave rack', hint: 'One wavy tube for several bikes — lock frame and wheel',
+      color: '#047857', glyph: 'M3 20.5h18M4 20.5V8.5a2.67 2.67 0 0 1 5.33 0v6a2.67 2.67 0 0 0 5.33 0v-6a2.67 2.67 0 0 1 5.33 0v12'
+    },
+    {
       key: 'rack', label: 'Rack', hint: 'Multi-bike rack, e.g. grid or wave style',
       color: '#7c3aed', glyph: 'M3 20.5h18M4 9h16M6 9v11.5M10 9v11.5M14 9v11.5M18 9v11.5'
     },
@@ -58,7 +62,7 @@ window.BIKE_PARKING_TYPES = (function () {
     // Maps any raw OSM value to one of the keys above.
     resolve: function (raw) {
       if (!raw || raw === 'unknown') return byKey.unknown;
-      if (raw === 'anchors' || raw === 'safe_loops' || raw === 'wide_stands' || raw === 'wave') return byKey.stands;
+      if (raw === 'anchors' || raw === 'safe_loops' || raw === 'wide_stands') return byKey.stands;
       if (raw === 'handlebar_holder' || raw === 'crossbar') return byKey.rack;
       return byKey[raw] || byKey.other;
     },
