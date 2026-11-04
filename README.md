@@ -58,8 +58,8 @@ inside city limits, and writes `data/bike-parking.geojson` and
 `data/guelph-boundary.geojson`, plus signed cycling routes (`route=bicycle` relations,
 clipped to the map area) in `data/cycle-routes.geojson`. The deploy workflow runs it on every deploy and every
 Monday, so the published map stays current. If Overpass is down, the deploy uses the
-copy committed in `data/`; refresh that copy now and then by running the script and
-committing the result.
+copy committed in `data/` and the run ends red, so a failed refresh doesn't look like a
+fresh map; refresh that copy now and then by running the script and committing the result.
 
 Address search uses [Photon](https://photon.komoot.io) (OpenStreetMap data) and also
 matches parking names.
@@ -70,9 +70,9 @@ has a "Details / fix" link. The tags the map uses:
 - `amenity=bicycle_parking`
 - `bicycle_parking=*` → icon (`stands`, `wave`, `rack`, `wall_loops`, `bollard`, `shed`, `lockers`, …)
 - `capacity=*` → number on the badge (`?` when missing)
-- `covered`, `indoor`, `fee`, `access`, `lit`, `operator`, `name`, `mapillary`
+- `covered`, `indoor`, `fee`, `access`, `lit`, `operator`, `name`, `mapillary`, `panoramax`
 
-Many Guelph locations have no `capacity` yet. Adding it in OSM makes the map more useful.
+The map is only as good as these tags, so if a rack's `capacity` or type is wrong, fix it in OSM.
 
 ## Bike base map
 
