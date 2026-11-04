@@ -33,7 +33,7 @@ jobs:
         id: fetch
         # If Overpass is down or slow, publish the copy committed in data/ instead.
         run: node scripts/fetch-data.mjs data
-        timeout-minutes: 6
+        timeout-minutes: 12
         continue-on-error: true
       # The bike base map is rebuilt once a month (or when the schema changes)
       # from Geofabrik's Ontario extract; other deploys reuse the cached file.

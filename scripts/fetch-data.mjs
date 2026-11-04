@@ -7,7 +7,7 @@
 //
 // Data © OpenStreetMap contributors, available under the ODbL.
 
-import { writeFile, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const OUT_DIR = process.argv[2] || 'data';
@@ -24,13 +24,22 @@ const BBOX = [43.475, -80.335, 43.605, -80.140];
 // scripts/tiles: -80.40, 43.44, -80.08, 43.64), so long trails stay small.
 const MAP_BBOX = [43.44, -80.40, 43.64, -80.08];
 
+// overpass-api.de answers 502 at once when its queue is full, while the two servers
+// behind it often still work, so they get asked directly. Under load even a trivial
+// query waits 30 s or more there. The other two either answer quickly or hang, so
+// they get less time, leaving more rounds for the servers most likely to answer.
 const ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter',
+  { url: 'https://overpass-api.de/api/interpreter', ms: 190_000 },
+  { url: 'https://lz4.overpass-api.de/api/interpreter', ms: 190_000 },
+  { url: 'https://z.overpass-api.de/api/interpreter', ms: 190_000 },
+  { url: 'https://overpass.kumi.systems/api/interpreter', ms: 45_000 },
+  { url: 'https://overpass.private.coffee/api/interpreter', ms: 45_000 },
 ];
 
-const QUERY = `[out:json][timeout:45];
+// Keep going round the servers until this runs out.
+const BUDGET_MS = 600_000;
+
+const QUERY = `[out:json][timeout:180];
 nwr["amenity"="bicycle_parking"](${BBOX.join(',')});
 out center tags;`;
 
@@ -59,15 +68,18 @@ const KEEP = {
   'survey:date': 'survey_date',
 };
 
-const ROUTES_QUERY = `[out:json][timeout:60];
+const ROUTES_QUERY = `[out:json][timeout:180];
 relation["route"="bicycle"](${BBOX.join(',')});
 out geom(${MAP_BBOX.join(',')});`;
 
 async function fetchOverpass(query = QUERY) {
+  const deadline = Date.now() + BUDGET_MS;
   let lastError;
-  // Two rounds over the mirrors; a healthy server answers this query in seconds.
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    for (const url of ENDPOINTS) {
+  for (let attempt = 1; Date.now() < deadline; attempt++) {
+    for (const { url, ms } of ENDPOINTS) {
+      const left = deadline - Date.now();
+      if (left <= 0) break;
+      const started = Date.now();
       try {
         const res = await fetch(url, {
           method: 'POST',
@@ -76,18 +88,23 @@ async function fetchOverpass(query = QUERY) {
             'User-Agent': USER_AGENT,
           },
           body: new URLSearchParams({ data: query }),
-          signal: AbortSignal.timeout(60_000),
+          signal: AbortSignal.timeout(Math.min(ms, left)),
         });
         if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
         const json = await res.json();
         if (!Array.isArray(json.elements)) throw new Error(`${url} → unexpected response`);
+        // A query that dies partway still answers 200, with what it had so far.
+        if (json.remark) throw new Error(`${url} → ${json.remark}`);
+        if (!json.elements.length) throw new Error(`${url} → no results`);
+        console.log(`Overpass answered in ${Math.round((Date.now() - started) / 1000)} s (${url}, attempt ${attempt})`);
         return json;
       } catch (err) {
         lastError = err;
-        console.warn(`Overpass request failed (${url}, attempt ${attempt}): ${err.message}`);
+        console.warn(`Overpass request failed after ${Math.round((Date.now() - started) / 1000)} s (${url}, attempt ${attempt}): ${err.message}`);
         await new Promise((r) => setTimeout(r, 2000));
       }
     }
+    await new Promise((r) => setTimeout(r, 30_000));
   }
   throw lastError;
 }
@@ -131,6 +148,11 @@ async function fetchBoundary() {
     if (!geometry || !/Polygon$/.test(geometry.type)) throw new Error('no polygon in response');
     return geometry;
   } catch (err) {
+    const saved = await readFile(join(OUT_DIR, 'guelph-boundary.geojson'), 'utf8').catch(() => null);
+    if (saved) {
+      console.warn(`City boundary unavailable, using the existing file: ${err.message}`);
+      return JSON.parse(saved).features[0].geometry;
+    }
     console.warn(`City boundary unavailable, keeping everything in the bounding box: ${err.message}`);
     return null;
   }
