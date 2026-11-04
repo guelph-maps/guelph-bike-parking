@@ -13,7 +13,7 @@ window.BIKE_PARKING_TYPES = (function () {
       color: '#047857', glyph: 'M3 20.5h18M4 20.5V8.5a2.67 2.67 0 0 1 5.33 0v6a2.67 2.67 0 0 0 5.33 0v-6a2.67 2.67 0 0 1 5.33 0v12'
     },
     {
-      key: 'rack', label: 'Rack', hint: 'Multi-bike rack, e.g. grid or wave style',
+      key: 'rack', label: 'Rack', hint: 'Multi-bike rack, e.g. a hoop with rings along the top',
       color: '#7c3aed', glyph: 'M3 20.5h18M4 9h16M6 9v11.5M10 9v11.5M14 9v11.5M18 9v11.5'
     },
     {
