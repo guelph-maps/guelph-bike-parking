@@ -30,6 +30,7 @@ jobs:
         with:
           node-version: 22
       - name: Download fresh bike parking data from OpenStreetMap
+        id: fetch
         # If Overpass is down or slow, publish the copy committed in data/ instead.
         run: node scripts/fetch-data.mjs data
         timeout-minutes: 6
@@ -94,3 +95,9 @@ jobs:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
+      # The site is up, but on the committed data, so end red rather than look fresh.
+      - name: Report a failed data refresh
+        if: steps.fetch.outcome == 'failure'
+        run: |
+          echo "::error title=Stale map data::Overpass failed, so this deploy published the copy committed in data/."
+          exit 1
