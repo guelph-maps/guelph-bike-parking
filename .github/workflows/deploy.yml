@@ -26,6 +26,8 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the release stamp below reads the history
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -84,9 +86,13 @@ jobs:
       - name: Collect site files
         run: |
           mkdir _site
-          cp -r index.html embed.html favicon.svg manifest.webmanifest sw.js icons vendor css js data _site/
-          # A new cache name per release, so phones pick up the new app files.
-          sed -i "s/__BUILD__/${GITHUB_SHA::12}-${GITHUB_RUN_NUMBER}/" _site/sw.js
+          app="index.html embed.html favicon.svg manifest.webmanifest sw.js icons vendor css js"
+          cp -r $app data _site/
+          # A new cache name per release, so phones pick up the new app files. Only
+          # commits to the app count: a data refresh must leave sw.js byte-identical,
+          # or every phone downloads the app again and is told there's a new version.
+          build="$(git log -1 --format=%h --abbrev=12 -- $app)-$(git rev-list --count HEAD -- $app)"
+          sed -i "s/__BUILD__/$build/" _site/sw.js
           # Without tiles the map falls back to OpenStreetMap's street map.
           if [ -f build/guelph.pmtiles ]; then node scripts/publish-tiles.mjs _site/tiles; fi
           touch _site/.nojekyll

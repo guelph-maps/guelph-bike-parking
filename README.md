@@ -144,8 +144,8 @@ Guelph's mobile signal is patchy, so the map is built to work without it. `sw.js
 service worker that:
 
 - precaches the app (HTML, CSS, JS, vendored libraries, fonts, icons) per release. The
-  deploy workflow stamps the commit into the cache name, so each release replaces the
-  old copy;
+  deploy workflow stamps the last commit to the app into the cache name, so each release
+  replaces the old copy, and a deploy that only refreshes the data isn't a release;
 - serves the parking data, city boundary and cycling routes from cache at once and
   refreshes them in the background ("stale-while-revalidate");
 - keeps OpenStreetMap street-map tiles as you browse, cache-first, capped at about

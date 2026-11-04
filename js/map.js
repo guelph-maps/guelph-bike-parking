@@ -820,7 +820,7 @@
   syncOnline();
 
   // ---- Release and cache ---------------------------------------------------------
-  // Each deploy stamps sw.js with its release. A new one installs in the
+  // Each deploy stamps sw.js with the app's release. A new one installs in the
   // background and takes over at once (skipWaiting), but this page keeps
   // running the code it opened with, so the menu offers a reload.
   var release = { loaded: null, newer: null };
@@ -873,7 +873,7 @@
   function releaseLabel(b) {
     if (!b) return 'Version unknown';
     if (b === '__BUILD__') return 'Development copy';
-    var m = /^([0-9a-f]+)-(\d+)$/.exec(b); // commit-run, from the deploy workflow
+    var m = /^([0-9a-f]+)-(\d+)$/.exec(b); // commit-count, from the deploy workflow
     return m ? 'Version ' + m[2] + ' (' + m[1].slice(0, 7) + ')' : 'Version ' + b;
   }
 

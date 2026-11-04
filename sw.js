@@ -5,8 +5,9 @@
 //   - parking data: served from cache at once, refreshed in the background
 //   - the bike base map: one file the page saves itself (js/basemap.js)
 //   - street map tiles: kept as you browse (capped), served from cache first
-// The deploy workflow replaces __BUILD__ with the commit, so each release gets
-// a fresh app cache; data and tiles carry over between releases.
+// The deploy workflow replaces __BUILD__ with the last commit to the app, so
+// each release gets a fresh app cache; data and tiles carry over between
+// releases, and a deploy that only refreshes them isn't a release.
 
 var BUILD = '__BUILD__';
 var APP_CACHE = 'app-' + BUILD;
