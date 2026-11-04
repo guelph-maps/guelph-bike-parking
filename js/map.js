@@ -267,6 +267,7 @@
     var ll = latlng.lat.toFixed(6) + ',' + latlng.lng.toFixed(6);
     var links = [link('https://www.google.com/maps/dir/?api=1&travelmode=bicycling&destination=' + ll, 'Directions')];
     if (p.mapillary) links.push(link('https://www.mapillary.com/app/?pKey=' + encodeURIComponent(p.mapillary), 'Photo'));
+    else if (p.panoramax) links.push(link('https://api.panoramax.xyz/?focus=pic&pic=' + encodeURIComponent(p.panoramax), 'Photo'));
     if (p.website) links.push(link(p.website, 'Website'));
     links.push(link('https://www.openstreetmap.org/' + p.osm, 'Details / fix'));
     html += '<div class="bp-links">' + links.join('') + '</div></div>';
@@ -363,13 +364,13 @@
       this._el.querySelectorAll('.bp-types li').forEach(function (li) {
         var s = per[li.dataset.type];
         li.querySelector('.bp-type-count').textContent = s ? fmt.format(s.spaces || 0) : '–';
-        li.querySelector('.bp-type-count').title = s ? s.n + ' locations, ' + s.spaces + ' known spaces' : '';
+        li.querySelector('.bp-type-count').title = s ? plural(s.n, 'location') + ', ' + plural(s.spaces, 'known space') : '';
       });
       // Make it obvious when the totals (and the map) leave some parking out.
       var filtered = coveredOnly || T.list.some(function (t) { return !enabledTypes[t.key]; });
       this._el.querySelector('.bp-legend-filtered').hidden = !filtered;
       this._el.querySelector('.bp-legend-total').textContent = fmt.format(spaces) + ' spaces';
-      this._el.querySelector('.bp-legend-total').title = shown.length + ' locations';
+      this._el.querySelector('.bp-legend-total').title = plural(shown.length, 'location');
     }
   });
 
