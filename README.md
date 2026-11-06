@@ -9,7 +9,7 @@ type, mixed ones in the colours of the types they contain. Private parking
 GCAT's, with an `<iframe>`. It works with no signal: the whole city's bike map is
 saved on the device (about 3 MB).
 
-Live at **https://guelph-maps.github.io/guelph-bike-parking/**
+Live at **https://guelph.bike/**
 
 - **Map:** `index.html`: our own cycling base map, address search, filter by rack type or
   covered, city boundary, optional cycling-route overlay, "my location", full-screen
@@ -24,7 +24,7 @@ Open `embed.html` on the published site to choose options and copy the code. The
 basic version:
 
 ```html
-<iframe src="https://guelph-maps.github.io/guelph-bike-parking/"
+<iframe src="https://guelph.bike/"
         title="Map of bike parking in Guelph"
         width="100%" height="500" style="border:0;max-width:100%;"
         loading="lazy" allow="geolocation; fullscreen" allowfullscreen></iframe>
