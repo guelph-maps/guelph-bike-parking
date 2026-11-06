@@ -819,6 +819,18 @@
   window.addEventListener('offline', syncOnline);
   syncOnline();
 
+  // ---- Moving to guelph.bike -----------------------------------------------------
+  // GitHub redirects the old address once the domain is set, but anyone who has
+  // been here opens the app from the service worker and never sees that redirect,
+  // and a redirected sw.js can't update them. So the old copy moves itself as soon
+  // as the new site answers over HTTPS. Until then this fails and nothing happens.
+  if (location.hostname === 'guelph-maps.github.io') {
+    fetch('https://guelph.bike/manifest.webmanifest', { cache: 'no-store' }).then(function (res) {
+      if (!res.ok) return;
+      location.replace('https://guelph.bike' + location.pathname.replace(/^\/guelph-bike-parking/, '') + location.search + location.hash);
+    }).catch(function () {});
+  }
+
   // ---- Release and cache ---------------------------------------------------------
   // Each deploy stamps sw.js with the app's release. A new one installs in the
   // background and takes over at once (skipWaiting), but this page keeps
