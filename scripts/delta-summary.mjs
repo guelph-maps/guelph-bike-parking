@@ -116,6 +116,7 @@ async function lastEditors(features) {
     try {
       const res = await fetch(`https://api.openstreetmap.org/api/0.6/${kind}s.json?${kind}s=${ids.join(',')}`, {
         headers: { 'User-Agent': USER_AGENT },
+        signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       for (const e of (await res.json()).elements) editors.set(`${kind}/${e.id}`, e.user);

@@ -88,8 +88,14 @@ jobs:
           APP: ${{ inputs.app }}
           DATA: ${{ inputs.data }}
         run: |
-          echo "app=${APP:-$(git tag --list 'v*' --sort=-v:refname | head -1)}" >> "$GITHUB_OUTPUT"
-          echo "data=${DATA:-$(git tag --list 'data-*' --sort=-v:refname | head -1)}" >> "$GITHUB_OUTPUT"
+          app=${APP:-$(git tag --list 'v*' --sort=-v:refname | head -1)}
+          data=${DATA:-$(git tag --list 'data-*' --sort=-v:refname | head -1)}
+          if [ -z "$app" ] || [ -z "$data" ]; then
+            echo "::error title=Nothing to publish::The live site needs an app release and a data release."
+            exit 1
+          fi
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "data=$data" >> "$GITHUB_OUTPUT"
       - name: Get the base map
         env:
           GH_TOKEN: ${{ github.token }}
