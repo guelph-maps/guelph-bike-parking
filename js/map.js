@@ -503,15 +503,19 @@
           '<form role="search">' +
             '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/><path d="M15.5 15.5L21 21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>' +
             '<input type="search" placeholder="Search address or place" aria-label="Search address or place" ' +
-              'autocomplete="off" enterkeyhint="search" role="combobox" aria-expanded="false" aria-controls="bp-results">' +
+              'autocomplete="off" enterkeyhint="search" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="bp-results">' +
           '</form>' +
-          '<ul class="bp-results" id="bp-results" role="listbox" hidden></ul>';
+          '<ul class="bp-results" id="bp-results" role="listbox" hidden></ul>' +
+          '<div class="bp-no-results" aria-hidden="true" hidden>No matches in Guelph</div>' +
+          '<div class="bp-search-status" role="status" aria-live="polite"></div>';
         L.DomEvent.disableClickPropagation(el);
         L.DomEvent.disableScrollPropagation(el);
 
         var form = el.querySelector('form');
         var input = el.querySelector('input');
         var list = el.querySelector('.bp-results');
+        var noResults = el.querySelector('.bp-no-results');
+        var status = el.querySelector('.bp-search-status');
         var results = [];
         var active = -1;
         var timer = null;
@@ -519,7 +523,10 @@
 
         function close() {
           list.hidden = true;
+          noResults.hidden = true;
           input.setAttribute('aria-expanded', 'false');
+          input.removeAttribute('aria-activedescendant');
+          status.textContent = '';
           active = -1;
         }
 
@@ -527,15 +534,20 @@
           list.innerHTML = '';
           results.forEach(function (r, i) {
             var li = L.DomUtil.create('li', i === active ? 'is-active' : '', list);
+            li.id = 'bp-result-' + i;
             li.setAttribute('role', 'option');
+            li.setAttribute('aria-selected', String(i === active));
             li.innerHTML = '<b>' + esc(r.label) + '</b>' + (r.detail ? '<span>' + esc(r.detail) + '</span>' : '');
             L.DomEvent.on(li, 'click', function () { choose(r); });
           });
-          if (!results.length && input.value.trim().length >= 3) {
-            list.innerHTML = '<li class="bp-empty">No matches in Guelph</li>';
-          }
-          list.hidden = !list.children.length;
+          list.hidden = !results.length;
+          noResults.hidden = results.length > 0 || input.value.trim().length < 3;
           input.setAttribute('aria-expanded', String(!list.hidden));
+          if (active >= 0) input.setAttribute('aria-activedescendant', 'bp-result-' + active);
+          else input.removeAttribute('aria-activedescendant');
+          status.textContent = results.length
+            ? results.length + (results.length === 1 ? ' suggestion available' : ' suggestions available')
+            : input.value.trim().length >= 3 ? 'No matches in Guelph' : '';
         }
 
         function choose(r) {
@@ -941,6 +953,8 @@
     .catch(function () { /* the boundary is decoration; the map works without it */ });
 
   var status = L.DomUtil.create('div', 'bp-status', map.getContainer());
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
   status.textContent = 'Loading bike parking…';
 
   fetch(DATA_URL)
