@@ -10,6 +10,9 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="preload" href="vendor/maplibre-gl/maplibre-gl.js" as="script" fetchpriority="high">
+  <link rel="preload" href="data/bike-parking.geojson" as="fetch" crossorigin fetchpriority="low">
+  <link rel="preload" href="data/guelph-boundary.geojson" as="fetch" crossorigin fetchpriority="low">
   <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css">
   <link rel="stylesheet" href="vendor/maplibre-gl/maplibre-gl.css">
