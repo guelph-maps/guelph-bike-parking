@@ -1,109 +1,110 @@
-name: Deploy map to GitHub Pages
+name: Deploy map
 
+# Merges to main update the beta site. The live site only changes when someone
+# publishes a release: v* for the app, data-* for the data.
 on:
   push:
-  schedule:
-    - cron: '17 9 * * 1' # Mondays, 09:17 UTC: refresh the OpenStreetMap data
+    branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      app:
+        description: 'Live only: app release to publish, to go back to an older one (default: the latest)'
+        required: false
+      data:
+        description: 'Live only: data release to publish, to go back to an older one (default: the latest)'
+        required: false
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: true
 
 jobs:
-  deploy:
-    # Pushes publish only from the default branch, whatever it's called.
-    # (Scheduled runs always use the default branch.)
-    if: github.event_name != 'push' || github.ref_name == github.event.repository.default_branch
+  beta:
+    if: github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # listing draft releases needs it; nothing here writes to this repo
+    concurrency:
+      group: beta
+      cancel-in-progress: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the release stamp reads the history and the tags
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Get the base map
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/get-tiles.sh
+      - name: Collect site files
+        run: |
+          scripts/build-site.sh HEAD HEAD
+          node scripts/mark-beta.mjs _site
+      # Pages hosts one site per repository, so beta lives in a repository of its own
+      # that only ever holds the latest build.
+      - name: Publish to the beta site
+        env:
+          BETA_DEPLOY_KEY: ${{ secrets.BETA_DEPLOY_KEY }}
+        run: |
+          key="$RUNNER_TEMP/beta-key"
+          printf '%s\n' "$BETA_DEPLOY_KEY" > "$key"
+          chmod 600 "$key"
+          cd _site
+          git init -q -b main
+          git add -A
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "Beta build of $GITHUB_SHA"
+          GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+            git push -f git@github.com:guelph-maps/guelph-bike-parking-beta.git main
+
+  # The github-pages environment only accepts v* and data-* tags, so GitHub itself
+  # refuses a run of this job from main, whatever this file says.
+  live:
+    if: github.ref_type == 'tag' && (startsWith(github.ref_name, 'v') || startsWith(github.ref_name, 'data-'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false # a merge or a second release must never cut off a release
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # the release stamp below reads the history
+          fetch-depth: 0 # the app and the data can come from different tags
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Download fresh bike parking data from OpenStreetMap
-        id: fetch
-        # If Overpass is down or slow, publish the copy committed in data/ instead.
-        run: node scripts/fetch-data.mjs data
-        timeout-minutes: 12
-        continue-on-error: true
-      # The bike base map is rebuilt once a month (or when the schema changes)
-      # from Geofabrik's Ontario extract; other deploys reuse the cached file.
-      - name: Pick this month's tile cache key
-        id: month
-        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
-      - name: Restore base map tiles
-        id: tiles
-        uses: actions/cache/restore@v4
-        with:
-          path: build/guelph.pmtiles
-          key: tiles-${{ hashFiles('scripts/tiles/schema.yml', 'scripts/build-tiles.mjs') }}-${{ steps.month.outputs.month }}
-          restore-keys: |
-            tiles-${{ hashFiles('scripts/tiles/schema.yml', 'scripts/build-tiles.mjs') }}-
-            tiles-
-      - uses: actions/setup-java@v4
-        if: steps.tiles.outputs.cache-hit != 'true'
-        with:
-          distribution: temurin
-          java-version: 21
-      - name: Build base map tiles
-        id: build-tiles
-        if: steps.tiles.outputs.cache-hit != 'true'
-        # On failure, publish the older tiles restored above (if any).
-        continue-on-error: true
-        timeout-minutes: 20
+      - name: Pick the app and data releases
+        id: pick
         env:
-          PLANETILER_JAR: build/planetiler.jar
-          PLANETILER_JAVA_OPTS: -Xmx6g
+          APP: ${{ inputs.app }}
+          DATA: ${{ inputs.data }}
         run: |
-          mkdir -p build
-          [ -f build/guelph.pmtiles ] && cp build/guelph.pmtiles build/previous.pmtiles
-          curl -sSfL -o build/planetiler.jar https://github.com/onthegomap/planetiler/releases/download/v0.10.2/planetiler.jar
-          echo "f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d  build/planetiler.jar" | sha256sum -c -
-          curl -sSfL -o build/ontario.osm.pbf https://download.geofabrik.de/north-america/canada/ontario-latest.osm.pbf
-          if ! node scripts/build-tiles.mjs build/ontario.osm.pbf; then
-            [ -f build/previous.pmtiles ] && mv build/previous.pmtiles build/guelph.pmtiles
+          app=${APP:-$(git tag --list 'v*' --sort=-v:refname | head -1)}
+          data=${DATA:-$(git tag --list 'data-*' --sort=-v:refname | head -1)}
+          if [ -z "$app" ] || [ -z "$data" ]; then
+            echo "::error title=Nothing to publish::The live site needs an app release and a data release."
             exit 1
           fi
-          rm -f build/ontario.osm.pbf build/previous.pmtiles
-      - name: Save base map tiles
-        if: steps.build-tiles.outcome == 'success'
-        uses: actions/cache/save@v4
-        with:
-          path: build/guelph.pmtiles
-          key: ${{ steps.tiles.outputs.cache-primary-key }}
+          echo "app=$app" >> "$GITHUB_OUTPUT"
+          echo "data=$data" >> "$GITHUB_OUTPUT"
+      - name: Get the base map
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/get-tiles.sh "${{ steps.pick.outputs.data }}"
       - uses: actions/configure-pages@v5
       - name: Collect site files
-        run: |
-          mkdir _site
-          app="index.html embed.html favicon.svg manifest.webmanifest sw.js icons vendor css js"
-          cp -r $app data _site/
-          # A new cache name per release, so phones pick up the new app files. Only
-          # commits to the app count: a data refresh must leave sw.js byte-identical,
-          # or every phone downloads the app again and is told there's a new version.
-          build="$(git log -1 --format=%h --abbrev=12 -- $app)-$(git rev-list --count HEAD -- $app)"
-          sed -i "s/__BUILD__/$build/" _site/sw.js
-          # Without tiles the map falls back to OpenStreetMap's street map.
-          if [ -f build/guelph.pmtiles ]; then node scripts/publish-tiles.mjs _site/tiles; fi
-          touch _site/.nojekyll
+        run: scripts/build-site.sh "${{ steps.pick.outputs.app }}" "${{ steps.pick.outputs.data }}"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
-      # The site is up, but on the committed data, so end red rather than look fresh.
-      - name: Report a failed data refresh
-        if: steps.fetch.outcome == 'failure'
-        run: |
-          echo "::error title=Stale map data::Overpass failed, so this deploy published the copy committed in data/."
-          exit 1

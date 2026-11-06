@@ -7,7 +7,7 @@
 //
 // Data © OpenStreetMap contributors, available under the ODbL.
 
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { copyFile, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const OUT_DIR = process.argv[2] || 'data';
@@ -238,6 +238,8 @@ const geojson = {
 
 await mkdir(OUT_DIR, { recursive: true });
 await writeFile(join(OUT_DIR, 'bike-parking.geojson'), JSON.stringify(geojson) + '\n');
+// Which app this data is for: the deploy refuses a mismatch (scripts/build-site.sh).
+await copyFile(new URL('../DATA_FORMAT', import.meta.url), join(OUT_DIR, 'FORMAT'));
 if (boundary) {
   const boundaryGeojson = {
     type: 'FeatureCollection',

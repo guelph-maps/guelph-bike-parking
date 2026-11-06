@@ -391,7 +391,7 @@
           var full = location.pathname + (fullParams.toString() ? '?' + fullParams : '');
           el.innerHTML = '<a href="' + esc(full) + '" target="_blank" rel="noopener">Guelph bike parking <span aria-hidden="true">&#8599;</span></a>';
         } else {
-          el.innerHTML = '<h1>Guelph Bike Parking</h1>' +
+          el.innerHTML = '<h1>Guelph Bike Parking' + (location.hostname === 'beta.guelph.bike' ? ' <span class="bp-beta">Beta</span>' : '') + '</h1>' +
             '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>' +
             '<button type="button" class="bp-menu-btn" title="More" aria-label="More" aria-haspopup="true" aria-expanded="false">' +
               '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>' +
@@ -819,18 +819,6 @@
   window.addEventListener('offline', syncOnline);
   syncOnline();
 
-  // ---- Moving to guelph.bike -----------------------------------------------------
-  // GitHub redirects the old address once the domain is set, but anyone who has
-  // been here opens the app from the service worker and never sees that redirect,
-  // and a redirected sw.js can't update them. So the old copy moves itself as soon
-  // as the new site answers over HTTPS. Until then this fails and nothing happens.
-  if (location.hostname === 'guelph-maps.github.io') {
-    fetch('https://guelph.bike/manifest.webmanifest', { cache: 'no-store' }).then(function (res) {
-      if (!res.ok) return;
-      location.replace('https://guelph.bike' + location.pathname.replace(/^\/guelph-bike-parking/, '') + location.search + location.hash);
-    }).catch(function () {});
-  }
-
   // ---- Release and cache ---------------------------------------------------------
   // Each deploy stamps sw.js with the app's release. A new one installs in the
   // background and takes over at once (skipWaiting), but this page keeps
@@ -885,8 +873,8 @@
   function releaseLabel(b) {
     if (!b) return 'Version unknown';
     if (b === '__BUILD__') return 'Development copy';
-    var m = /^([0-9a-f]+)-(\d+)$/.exec(b); // commit-count, from the deploy workflow
-    return m ? 'Version ' + m[2] + ' (' + m[1].slice(0, 7) + ')' : 'Version ' + b;
+    var m = /^(.+-dev)\.([0-9a-f]+)$/.exec(b); // a beta build, from scripts/build-site.sh
+    return m ? 'Version ' + m[1] + ' (' + m[2] + ')' : 'Version ' + b;
   }
 
   function renderMenu(box) {
