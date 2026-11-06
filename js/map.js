@@ -23,6 +23,16 @@
   //   search=0            hide the address search box
   var params = new URLSearchParams(location.search);
   var inFrame = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+  if (location.hostname === 'guelph.bike' && !inFrame) {
+    var counter = document.createElement('script');
+    counter.dataset.goatcounter = 'https://osm-guelph.goatcounter.com/count';
+    counter.dataset.goatcounterSettings = '{"path":"/guelph-bike-parking/"}';
+    counter.async = true;
+    counter.integrity = 'sha384-atnOLvQb9t+jTSipvd75X2yginT4PjVbqDdlJAmxMm+wYElFmeR6EmLP5bYeoRVQ';
+    counter.crossOrigin = 'anonymous';
+    counter.src = 'https://gc.zgo.at/count.v5.js';
+    document.head.appendChild(counter);
+  }
   var embed = params.has('embed') ? params.get('embed') !== '0' : inFrame;
   var useCluster = params.get('cluster') !== '0';
   var smallScreen = window.matchMedia('(max-width: 640px)').matches;
