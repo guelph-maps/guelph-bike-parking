@@ -6,6 +6,7 @@
   <title>Guelph Bike Parking Map</title>
   <meta name="description" content="Map of public bicycle parking in Guelph, Ontario: rack type and number of spaces at each location.">
   <meta name="theme-color" content="#0f766e">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org https://osm-guelph.goatcounter.com; connect-src 'self' https://photon.komoot.io https://guelph.bike https://osm-guelph.goatcounter.com; font-src 'self'; worker-src 'self' blob:; frame-src 'self'; manifest-src 'self'; form-action 'self'">
   <link rel="canonical" href="https://guelph.bike/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
@@ -14,7 +15,6 @@
   <link rel="stylesheet" href="vendor/leaflet.markercluster/MarkerCluster.css">
   <link rel="stylesheet" href="vendor/maplibre-gl/maplibre-gl.css">
   <link rel="stylesheet" href="css/map.css">
-  <script data-goatcounter="https://osm-guelph.goatcounter.com/count" data-goatcounter-settings='{"path": "/guelph-bike-parking/"}' async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
   <div id="map" role="application" aria-label="Map of bike parking in Guelph"></div>
