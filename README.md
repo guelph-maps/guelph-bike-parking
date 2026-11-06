@@ -56,10 +56,14 @@ Overpass API being up while people use it. `scripts/fetch-data.mjs` downloads bi
 parking from the Overpass API and the city boundary from Nominatim, keeps only parking
 inside city limits, and writes `data/bike-parking.geojson` and
 `data/guelph-boundary.geojson`, plus signed cycling routes (`route=bicycle` relations,
-clipped to the map area) in `data/cycle-routes.geojson`. The deploy workflow runs it on every deploy and every
-Monday, so the published map stays current. If Overpass is down, the deploy uses the
-copy committed in `data/` and the run ends red, so a failed refresh doesn't look like a
-fresh map; refresh that copy now and then by running the script and committing the result.
+clipped to the map area) in `data/cycle-routes.geojson`.
+
+The sites only ever publish the data committed in `data/`, so a bad edit in OpenStreetMap
+or an Overpass outage can't reach them. Every Monday `.github/workflows/data-refresh.yml`
+runs the script and, if anything changed, keeps one pull request open with the new data
+and a summary from `scripts/delta-summary.mjs`: new, removed and changed racks, who
+mapped them, and anything worth checking. Merging it updates beta, and a data release
+puts it live (see [Deploying](#deploying)).
 
 Address search uses [Photon](https://photon.komoot.io) (OpenStreetMap data) and also
 matches parking names.
@@ -92,9 +96,11 @@ works with no signal anywhere in the city. It's styled for cycling (`js/style.js
 The tiles are built with [Planetiler](https://github.com/onthegomap/planetiler) and the
 custom schema in `scripts/tiles/schema.yml`, which keeps only what the style draws
 (each layer's classes and attributes are described in its comments; test cases in
-`schema.spec.yml`). The deploy workflow builds
-them once a month from Geofabrik's Ontario extract, caches the result for other deploys,
-and keeps last month's file if a build fails. `scripts/publish-tiles.mjs` copies the file
+`schema.spec.yml`). They're built on request (Actions → Build base map tiles) from
+Geofabrik's Ontario extract, because each new file is a download on every phone. The
+result is a draft data release holding `guelph.pmtiles`: beta uses it straight away, and
+publishing the draft puts it live. A data release without a tile file keeps the one
+before it. `scripts/publish-tiles.mjs` copies the file
 into the site under a content-hashed name and writes `tiles/tiles.json`; phones that have
 an older copy download the new one in the background and switch on the next visit.
 
@@ -128,9 +134,30 @@ the data file from `file://`.
 
 ## Deploying
 
-`.github/workflows/deploy.yml` publishes the site to GitHub Pages on every push to
-the default branch, every Monday, and on demand (Actions → Deploy map to GitHub Pages → Run workflow).
-One-time setup: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+There are two sites, both built by `.github/workflows/deploy.yml`:
+
+- **Beta**, [beta.guelph.bike](https://beta.guelph.bike/), follows `main`: every merge
+  updates it. It's a separate address, so its offline copy can't touch the live site's.
+  Pages hosts one site per repository, so the build is pushed to
+  `guelph-maps/guelph-bike-parking-beta`, which holds nothing else.
+- **Live**, [guelph.bike](https://guelph.bike/), only changes when someone publishes a
+  GitHub release. It's the latest app release plus the latest data release, and either
+  kind of release publishes the two together.
+
+| Release | Tag | Puts live |
+|---|---|---|
+| App | `v19.0.0` | the app files at that tag |
+| Data | `data-2026-11-09` | `data/` at that tag, and `guelph.pmtiles` if the release has one |
+
+To go back, run the Deploy map workflow from a release tag and name the older app or data
+release. Beta shows the next version with `-dev` (`19.0.1-dev`), worked out from the
+latest tag, so nothing needs bumping by hand.
+
+`DATA_FORMAT` says which data the app can read, and `data/FORMAT` which it was written
+as. Bump `DATA_FORMAT` when a change to the data or the tile schema would break an older
+app, and refresh the data. The deploy then refuses a mismatch and leaves the site as it
+is, so such a change needs both an app and a data release: the first one fails, and the
+second goes live.
 
 Every library is vendored in `vendor/`, byte-identical to its npm release, so the map
 loads nothing from third-party CDNs: Leaflet 1.9.4, Leaflet.markercluster 1.5.3,
@@ -144,8 +171,8 @@ Guelph's mobile signal is patchy, so the map is built to work without it. `sw.js
 service worker that:
 
 - precaches the app (HTML, CSS, JS, vendored libraries, fonts, icons) per release. The
-  deploy workflow stamps the last commit to the app into the cache name, so each release
-  replaces the old copy, and a deploy that only refreshes the data isn't a release;
+  deploy stamps the app's version into the cache name, so each release replaces the old
+  copy, and a deploy that only refreshes the data isn't a release;
 - serves the parking data, city boundary and cycling routes from cache at once and
   refreshes them in the background ("stale-while-revalidate");
 - keeps OpenStreetMap street-map tiles as you browse, cache-first, capped at about

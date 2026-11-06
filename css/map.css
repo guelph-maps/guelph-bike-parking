@@ -125,6 +125,10 @@ html, body {
 }
 .bp-title { display: flex; align-items: center; gap: 10px; }
 .bp-title h1 { margin: 0; font-size: 16px; line-height: 1.2; }
+.bp-beta {
+  margin-left: 2px; padding: 1px 6px; border-radius: 999px; background: var(--bp-accent); color: #fff;
+  font-size: 11px; font-weight: 600; vertical-align: 2px;
+}
 .bp-about-btn {
   flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--bp-muted); background: none;
   color: var(--bp-muted); font: italic 700 13px/1 Georgia, serif; cursor: pointer; padding: 0;
