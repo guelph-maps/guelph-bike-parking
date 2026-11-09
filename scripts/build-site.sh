@@ -12,6 +12,24 @@ app_ref=$1
 data_ref=$2
 app="index.html embed.html favicon.svg manifest.webmanifest sw.js icons vendor css js"
 
+# Fail fast with clear messages when requested refs or format files are missing.
+if ! git rev-parse --verify --quiet "$app_ref^{commit}" >/dev/null; then
+  echo "::error title=Missing app ref::Can't find app ref '$app_ref'."
+  exit 1
+fi
+if ! git rev-parse --verify --quiet "$data_ref^{commit}" >/dev/null; then
+  echo "::error title=Missing data ref::Can't find data ref '$data_ref'."
+  exit 1
+fi
+if ! git cat-file -e "$app_ref:DATA_FORMAT" 2>/dev/null; then
+  echo "::error title=Missing app format::'$app_ref' doesn't contain DATA_FORMAT."
+  exit 1
+fi
+if ! git cat-file -e "$data_ref:data/FORMAT" 2>/dev/null; then
+  echo "::error title=Missing data format::'$data_ref' doesn't contain data/FORMAT."
+  exit 1
+fi
+
 # Data released for a newer app can't be published on an older one, or the other
 # way round. A failed check leaves the site as it is.
 app_format=$(git show "$app_ref:DATA_FORMAT")
