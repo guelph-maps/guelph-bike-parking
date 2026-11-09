@@ -1,0 +1,53 @@
+name: Check for new map data
+
+# Nothing here touches either site. If OpenStreetMap has changed, it keeps one
+# pull request open with the new data and a summary of what's different.
+on:
+  schedule:
+    - cron: '17 23 * * 1' # Mondays, 23:17 UTC: early evening in Guelph
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: data-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Download fresh data from OpenStreetMap
+        timeout-minutes: 12
+        run: |
+          cp -r data "$RUNNER_TEMP/old-data"
+          node scripts/fetch-data.mjs data
+      - name: Summarize what changed
+        run: node scripts/delta-summary.mjs "$RUNNER_TEMP/old-data" data "$RUNNER_TEMP/delta"
+      - name: Open or update the pull request
+        run: |
+          open=$(gh pr list --head data-refresh --state open --json number --jq '.[0].number // empty')
+          if [ ! -f "$RUNNER_TEMP/delta/title.txt" ]; then
+            # The map caught up by itself, say an edit was reverted.
+            if [ -n "$open" ]; then gh pr close "$open" --comment 'OpenStreetMap matches the committed data again.'; fi
+            exit 0
+          fi
+          title=$(cat "$RUNNER_TEMP/delta/title.txt")
+          git checkout -B data-refresh
+          git add data
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -q -m "$title"
+          git push -f origin data-refresh
+          if [ -n "$open" ]; then
+            gh pr edit "$open" --title "$title" --body-file "$RUNNER_TEMP/delta/body.md"
+          else
+            gh pr create --base main --head data-refresh --title "$title" --body-file "$RUNNER_TEMP/delta/body.md"
+          fi

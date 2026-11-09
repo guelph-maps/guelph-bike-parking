@@ -1,0 +1,45 @@
+name: Build base map tiles
+
+# Run by hand. A new tile file is a 3 MB download on every phone, so the base map
+# only changes when someone wants it to. The result is a draft data release: beta
+# picks it up at once, and publishing the draft puts it live.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Build the tiles from Geofabrik's Ontario extract
+        env:
+          PLANETILER_JAR: build/planetiler.jar
+          PLANETILER_JAVA_OPTS: -Xmx6g
+        run: |
+          mkdir -p build
+          curl -sSfL -o build/planetiler.jar https://github.com/onthegomap/planetiler/releases/download/v0.10.2/planetiler.jar
+          echo "f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d  build/planetiler.jar" | sha256sum -c -
+          curl -sSfL -o build/ontario.osm.pbf https://download.geofabrik.de/north-america/canada/ontario-latest.osm.pbf
+          node scripts/build-tiles.mjs build/ontario.osm.pbf
+      - name: Save them as a draft data release
+        run: |
+          tag="data-$(date -u +%F)"
+          gh release create "$tag" build/guelph.pmtiles --draft --target "$GITHUB_SHA" --title "$tag" \
+            --notes 'New base map, with the map data on main at the time. Publishing this puts both live.'
+      # Actions can't set off other workflows by creating a release, only by asking.
+      - name: Update the beta site
+        run: gh workflow run deploy.yml --ref main
