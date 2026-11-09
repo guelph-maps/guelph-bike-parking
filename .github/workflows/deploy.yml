@@ -54,16 +54,32 @@ jobs:
       - name: Publish to the beta site
         env:
           BETA_DEPLOY_KEY: ${{ secrets.BETA_DEPLOY_KEY }}
+          BETA_DEPLOY_KEY_PASSPHRASE: ${{ secrets.BETA_DEPLOY_KEY_PASSPHRASE }}
         run: |
+          if [ -z "${BETA_DEPLOY_KEY:-}" ] || [ -z "${BETA_DEPLOY_KEY_PASSPHRASE:-}" ]; then
+            echo "::error title=Missing beta key secret::Set BETA_DEPLOY_KEY and BETA_DEPLOY_KEY_PASSPHRASE in Actions secrets."
+            exit 1
+          fi
           key="$RUNNER_TEMP/beta-key"
           printf '%s\n' "$BETA_DEPLOY_KEY" > "$key"
           chmod 600 "$key"
+          if ssh-keygen -y -P "" -f "$key" >/dev/null 2>&1; then
+            echo "::error title=Unencrypted deploy key::BETA_DEPLOY_KEY must be protected with a passphrase."
+            exit 1
+          fi
+          askpass="$RUNNER_TEMP/beta-askpass"
+          printf '%s\n' '#!/usr/bin/env bash' 'printf "%s\n" "$BETA_DEPLOY_KEY_PASSPHRASE"' > "$askpass"
+          chmod 700 "$askpass"
+          eval "$(ssh-agent -s)"
+          trap 'ssh-agent -k >/dev/null 2>&1; rm -f "$key" "$askpass"' EXIT
+          DISPLAY=:0 SSH_ASKPASS="$askpass" SSH_ASKPASS_REQUIRE=force \
+            setsid -w ssh-add "$key" < /dev/null
           cd _site
           git init -q -b main
           git add -A
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
             commit -q -m "Beta build of $GITHUB_SHA"
-          GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+          GIT_SSH_COMMAND="ssh -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
             git push -f git@github.com:Coehill/guelph-bike-parking-beta.git main
       - name: Smoke test the beta site
         run: |
