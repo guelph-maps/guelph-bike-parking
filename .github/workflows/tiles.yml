@@ -38,8 +38,13 @@ jobs:
       - name: Save them as a draft data release
         run: |
           tag="data-$(date -u +%F)"
-          gh release create "$tag" build/guelph.pmtiles --draft --target "$GITHUB_SHA" --title "$tag" \
-            --notes 'New base map, with the map data on main at the time. Publishing this puts both live.'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" build/guelph.pmtiles --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" build/guelph.pmtiles --draft --target "$GITHUB_SHA" --title "$tag" \
+              --notes 'New base map, with the map data on main at the time. Publishing this puts both live.'
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx 'guelph.pmtiles'
       # Actions can't set off other workflows by creating a release, only by asking.
       - name: Update the beta site
         run: gh workflow run deploy.yml --ref main

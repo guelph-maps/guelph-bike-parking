@@ -154,6 +154,14 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
 | App | `v0.1.0` | the app files at that tag |
 | Data | `data-2026-11-09` | `data/` at that tag, and `guelph.pmtiles` if the release has one |
 
+Release checklist for the bike base map: when a new `data-*` release carries a new
+`guelph.pmtiles` file, upload that asset to the published release before publishing it.
+`./scripts/get-tiles.sh` only picks up non-draft `data-*` releases whose asset list includes
+`guelph.pmtiles`; if that asset is missing, the production workflow exits at "Get the
+base map" and never reaches the Pages deployment steps. If a same-day tag exists as both a
+stale draft and a published release, attach the asset to the published release and delete
+or ignore the stale draft so the workflow always resolves the same tag deterministically.
+
 To go back, run the Deploy site workflow from a release tag and name the older app or data
 release. Beta shows the next version with `-dev` (`0.1.1-dev`), worked out from the
 latest tag, so nothing needs bumping by hand.

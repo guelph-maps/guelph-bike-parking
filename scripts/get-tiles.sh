@@ -9,12 +9,21 @@
 set -euo pipefail
 
 data_tag=${1:-}
-filter='.tag_name | startswith("data-")'
-if [ -n "$data_tag" ]; then filter="$filter and (.draft | not) and .tag_name <= \"$data_tag\""; fi
-
-asset=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq "
-  [.[] | select($filter) | select(any(.assets[]; .name == \"guelph.pmtiles\"))]
-  | sort_by(.tag_name) | last | .assets[]? | select(.name == \"guelph.pmtiles\") | .id")
+if [ -n "$data_tag" ]; then
+  asset=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq "
+    [.[]
+      | select(.tag_name | startswith(\"data-\"))
+      | select(.draft == false)
+      | select(.tag_name <= \"$data_tag\")
+      | select(any(.assets[]; .name == \"guelph.pmtiles\"))]
+    | sort_by(.created_at) | last | .assets[]? | select(.name == \"guelph.pmtiles\") | .id")
+else
+  asset=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq "
+    [.[]
+      | select(.tag_name | startswith(\"data-\"))
+      | select(any(.assets[]; .name == \"guelph.pmtiles\"))]
+    | sort_by(.created_at) | last | .assets[]? | select(.name == \"guelph.pmtiles\") | .id")
+fi
 
 if [ -z "$asset" ]; then
   # The live site must never lose its base map; beta can do without.
