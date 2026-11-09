@@ -10,6 +10,7 @@
   var form = document.getElementById('opts');
   var preview = document.getElementById('preview');
   var code = document.getElementById('code');
+  var copyStatus = document.getElementById('copy-status');
 
   function mapUrl() {
     var f = form.elements;
@@ -44,9 +45,21 @@
   form.addEventListener('change', update);
   document.getElementById('copy').addEventListener('click', function () {
     var btn = this;
-    function done() { btn.textContent = 'Copied!'; setTimeout(function () { btn.textContent = 'Copy code'; }, 1500); }
-    if (navigator.clipboard) navigator.clipboard.writeText(code.value).then(done, function () { code.select(); });
-    else { code.select(); document.execCommand('copy'); done(); }
+    function done() {
+      btn.textContent = 'Copied!';
+      copyStatus.textContent = 'Embed code copied to clipboard.';
+      setTimeout(function () { btn.textContent = 'Copy code'; }, 1500);
+    }
+    function failed() {
+      code.select();
+      copyStatus.textContent = 'Could not copy automatically. Embed code selected; press Ctrl+C to copy.';
+    }
+    if (navigator.clipboard) navigator.clipboard.writeText(code.value).then(done, failed);
+    else {
+      code.select();
+      if (document.execCommand('copy')) done();
+      else failed();
+    }
   });
   update();
 })();
