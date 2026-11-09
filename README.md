@@ -141,10 +141,13 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
   site's. Pages hosts one site per repository, so the build is pushed to
   `Coehill/guelph-bike-parking-beta`, which holds nothing else. Beta now requires
   `tiles/tiles.json`; if no release has `guelph.pmtiles`, the deploy fails instead of
-  publishing a street-map-only fallback.
+  publishing a street-map-only fallback. The push uses a passphrase-protected deploy key:
+  set `BETA_DEPLOY_KEY` and `BETA_DEPLOY_KEY_PASSPHRASE` in the source repo's Actions
+  secrets, and add the matching public key as a write-enabled deploy key on
+  `Coehill/guelph-bike-parking-beta`.
 - **Production**, [guelph.bike](https://guelph.bike/), only changes when someone publishes
-  a GitHub release. It's the latest app release plus the latest data release, and either
-  kind of release publishes the two together.
+  a GitHub release. A `v*` release publishes that app tag with the latest data release,
+  and a `data-*` release publishes that data tag with the latest app release.
 
 | Release | Tag | Puts on production |
 |---|---|---|
