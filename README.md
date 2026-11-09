@@ -143,8 +143,8 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
   `tiles/tiles.json`; if no release has `guelph.pmtiles`, the deploy fails instead of
   publishing a street-map-only fallback.
 - **Production**, [guelph.bike](https://guelph.bike/), only changes when someone publishes
-  a GitHub release. It's the latest app release plus the latest data release, and either
-  kind of release publishes the two together.
+  a GitHub release. A `v*` release publishes that app tag with the latest data release,
+  and a `data-*` release publishes that data tag with the latest app release.
 
 | Release | Tag | Puts on production |
 |---|---|---|

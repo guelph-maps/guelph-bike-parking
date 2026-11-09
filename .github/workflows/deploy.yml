@@ -103,9 +103,14 @@ jobs:
         env:
           APP: ${{ inputs.app }}
           DATA: ${{ inputs.data }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
-          app=${APP:-$(git tag --list 'v*' --sort=-v:refname | head -1)}
-          data=${DATA:-$(git tag --list 'data-*' --sort=-v:refname | head -1)}
+          app=${APP:-}
+          data=${DATA:-}
+          if [[ "$REF_NAME" == v* ]] && [ -z "$app" ]; then app="$REF_NAME"; fi
+          if [[ "$REF_NAME" == data-* ]] && [ -z "$data" ]; then data="$REF_NAME"; fi
+          if [ -z "$app" ]; then app=$(git tag --list 'v*' --sort=-v:refname | head -1); fi
+          if [ -z "$data" ]; then data=$(git tag --list 'data-*' --sort=-v:refname | head -1); fi
           if [ -z "$app" ] || [ -z "$data" ]; then
             echo "::error title=Nothing to publish::The production site needs an app release and a data release."
             exit 1
