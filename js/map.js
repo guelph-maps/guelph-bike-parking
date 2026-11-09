@@ -31,9 +31,7 @@
     counter.dataset.goatcounter = 'https://osm-guelph.goatcounter.com/count';
     counter.dataset.goatcounterSettings = JSON.stringify({ path: countAs });
     counter.async = true;
-    counter.integrity = 'sha384-atnOLvQb9t+jTSipvd75X2yginT4PjVbqDdlJAmxMm+wYElFmeR6EmLP5bYeoRVQ';
-    counter.crossOrigin = 'anonymous';
-    counter.src = 'https://gc.zgo.at/count.v5.js';
+    counter.src = 'https://gc.zgo.at/count.js';
     document.head.appendChild(counter);
   }
   var embed = params.has('embed') ? params.get('embed') !== '0' : inFrame;
