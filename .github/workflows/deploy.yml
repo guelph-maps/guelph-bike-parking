@@ -79,7 +79,7 @@ jobs:
           git add -A
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
             commit -q -m "Beta build of $GITHUB_SHA"
-          GIT_SSH_COMMAND="ssh -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
+          GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
             git push -f git@github.com:Coehill/guelph-bike-parking-beta.git main
       - name: Smoke test the beta site
         run: |
