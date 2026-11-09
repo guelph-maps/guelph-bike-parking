@@ -139,7 +139,9 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
 - **Beta**, [beta.guelph.bike](https://beta.guelph.bike/), follows `main`: every merge
   updates it. It's a separate address, so its offline copy can't touch the production
   site's. Pages hosts one site per repository, so the build is pushed to
-  `Coehill/guelph-bike-parking-beta`, which holds nothing else.
+  `Coehill/guelph-bike-parking-beta`, which holds nothing else. Beta now requires
+  `tiles/tiles.json`; if no release has `guelph.pmtiles`, the deploy fails instead of
+  publishing a street-map-only fallback.
 - **Production**, [guelph.bike](https://guelph.bike/), only changes when someone publishes
   a GitHub release. It's the latest app release plus the latest data release, and either
   kind of release publishes the two together.
@@ -155,9 +157,9 @@ latest tag, so nothing needs bumping by hand.
 
 `DATA_FORMAT` says which data the app can read, and `data/FORMAT` which it was written
 as. Bump `DATA_FORMAT` when a change to the data or the tile schema would break an older
-app, and refresh the data. The deploy then refuses a mismatch and leaves the site as it
-is, so such a change needs both an app and a data release: the first one fails, and the
-second goes live.
+app, and refresh the data. Production deploys run a preflight check for missing refs and
+format files, then refuse a mismatch and leave the site as it is, so such a change needs
+both an app and a data release: the first one fails, and the second goes live.
 
 Every library is vendored in `vendor/`, byte-identical to its npm release, so the map
 loads nothing from third-party CDNs: Leaflet 1.9.4, Leaflet.markercluster 1.5.3,

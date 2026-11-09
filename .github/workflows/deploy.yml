@@ -43,6 +43,12 @@ jobs:
         run: |
           scripts/build-site.sh HEAD HEAD
           node scripts/mark-beta.mjs _site
+      - name: Require bike base map files on beta
+        run: |
+          if [ ! -s _site/tiles/tiles.json ]; then
+            echo "::error title=Missing beta base map::Beta deploy needs tiles/tiles.json. Build tiles and publish a data release with guelph.pmtiles first."
+            exit 1
+          fi
       # Pages hosts one site per repository, so beta lives in a repository of its own
       # that only ever holds the latest build.
       - name: Publish to the beta site
