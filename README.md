@@ -148,11 +148,11 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
 
 | Release | Tag | Puts on production |
 |---|---|---|
-| App | `v19.0.0` | the app files at that tag |
+| App | `v0.1.0` | the app files at that tag |
 | Data | `data-2026-11-09` | `data/` at that tag, and `guelph.pmtiles` if the release has one |
 
 To go back, run the Deploy site workflow from a release tag and name the older app or data
-release. Beta shows the next version with `-dev` (`19.0.1-dev`), worked out from the
+release. Beta shows the next version with `-dev` (`0.1.1-dev`), worked out from the
 latest tag, so nothing needs bumping by hand.
 
 `DATA_FORMAT` says which data the app can read, and `data/FORMAT` which it was written

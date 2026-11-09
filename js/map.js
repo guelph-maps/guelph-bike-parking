@@ -23,10 +23,13 @@
   //   search=0            hide the address search box
   var params = new URLSearchParams(location.search);
   var inFrame = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
-  if (location.hostname === 'guelph.bike' && !inFrame) {
+  // Visits are counted on the two public sites, each under its own path, and never
+  // inside someone else's page.
+  var countAs = { 'guelph.bike': '/guelph-bike-parking/', 'beta.guelph.bike': '/beta/' }[location.hostname];
+  if (countAs && !inFrame) {
     var counter = document.createElement('script');
     counter.dataset.goatcounter = 'https://osm-guelph.goatcounter.com/count';
-    counter.dataset.goatcounterSettings = '{"path":"/guelph-bike-parking/"}';
+    counter.dataset.goatcounterSettings = JSON.stringify({ path: countAs });
     counter.async = true;
     counter.integrity = 'sha384-atnOLvQb9t+jTSipvd75X2yginT4PjVbqDdlJAmxMm+wYElFmeR6EmLP5bYeoRVQ';
     counter.crossOrigin = 'anonymous';

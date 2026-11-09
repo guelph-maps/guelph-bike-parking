@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Turns a built site into the beta site: its own address and installed-app name,
-// kept out of search results, and visits counted apart from the live site.
+// kept out of search results. (js/map.js counts beta visits under /beta/ by itself.)
 //
 //   node scripts/mark-beta.mjs <site-dir>
 
@@ -20,8 +20,7 @@ function edit(file, change) {
 
 for (const page of ['index.html', 'embed.html']) {
   edit(page, (html) => html
-    .replace(/<title>(.*?)<\/title>/, '<title>$1 (Beta)</title>\n  <meta name="robots" content="noindex">')
-    .replace(/("path":\s*")\/guelph-bike-parking\//, '$1/beta/'));
+    .replace(/<title>(.*?)<\/title>/, '<title>$1 (Beta)</title>\n  <meta name="robots" content="noindex">'));
 }
 
 edit('manifest.webmanifest', (text) => {

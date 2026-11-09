@@ -4,7 +4,7 @@
 #
 #   scripts/build-site.sh <app-ref> <data-ref>
 #
-# An app ref that's a release tag (v19.0.0) stamps that version; anything else is a
+# An app ref that's a release tag (v0.1.0) stamps that version; anything else is a
 # development build, stamped with the next patch and its last commit to the app.
 set -euo pipefail
 
