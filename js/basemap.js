@@ -55,6 +55,17 @@
     });
   }
 
+  // Range requests straight from the site, never through the browser's HTTP
+  // cache. GitHub Pages gzips .pmtiles; once the whole file is in that cache
+  // gzipped, phones answer a range with a slice of the gzip stream, which
+  // can't be decoded, so the bike map stays blank until the file is saved.
+  // pmtiles already does this for Chrome on Windows; this extends it to all.
+  function streamingSource(url) {
+    var source = new pmtiles.FetchSource(url);
+    source.chromeWindowsNoCache = true; // read by getBytes: fetch with cache 'no-store'
+    return source;
+  }
+
   // A pmtiles Source that waits until we know where the tiles come from.
   var resolveSource, rejectSource;
   var inner = new Promise(function (res, rej) { resolveSource = res; rejectSource = rej; });
@@ -86,7 +97,7 @@
       return fetchInfo().then(function (info) {
         if (!saved) {
           streamingUrl = info.url;
-          resolveSource(new pmtiles.FetchSource(info.url));
+          resolveSource(streamingSource(info.url));
         }
         var current = saved && saved.url === info.url;
         set({ info: info, status: current ? 'saved' : saved ? 'outdated' : 'online' });
@@ -105,7 +116,9 @@
     if (saving || !state.info || !window.caches) return saving;
     var info = state.info;
     set({ status: 'downloading', progress: 0, error: null });
-    saving = fetch(info.url, { cache: 'no-cache' }).then(function (res) {
+    // 'no-store': the copy goes into our own cache below, and a gzipped copy
+    // left in the browser's HTTP cache breaks the range requests (see streamingSource).
+    saving = fetch(info.url, { cache: 'no-store' }).then(function (res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var total = +res.headers.get('Content-Length') || info.bytes || 0;
       if (!res.body || !total) return res.blob();
