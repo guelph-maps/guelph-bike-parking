@@ -24,35 +24,36 @@
   function abs(url) { return new URL(url, location.href).href; }
 
   function timeout(promise, ms) {
-    return new Promise(function (resolve, reject) {
-      var t = setTimeout(function () { reject(new Error('timed out')); }, ms);
-      promise.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
-    });
+    return Promise.race([
+      promise,
+      new Promise(function (_, reject) {
+        setTimeout(function () { reject(new Error('timed out')); }, ms);
+      })
+    ]);
   }
 
   // { url, bytes, date, blob } for the copy on this device, or null.
-  function savedCopy() {
-    if (!window.caches) return Promise.resolve(null);
-    return caches.open(CACHE).then(function (cache) {
-      return cache.keys().then(function (keys) {
-        if (!keys.length) return null;
-        return cache.match(keys[0]).then(function (res) {
-          return res.blob().then(function (blob) {
-            return { url: keys[0].url, bytes: blob.size, date: res.headers.get('X-Map-Date'), blob: blob };
-          });
-        });
-      });
-    }).catch(function () { return null; });
+  async function savedCopy() {
+    if (!window.caches) return null;
+    try {
+      var cache = await caches.open(CACHE);
+      var keys = await cache.keys();
+      if (!keys.length) return null;
+      var res = await cache.match(keys[0]);
+      if (!res) return null;
+      var blob = await res.blob();
+      return { url: keys[0].url, bytes: blob.size, date: res.headers.get('X-Map-Date'), blob: blob };
+    } catch (err) {
+      return null;
+    }
   }
 
-  function fetchInfo() {
-    return timeout(fetch(INFO_URL, { cache: 'no-cache' }), 8000).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return r.json();
-    }).then(function (info) {
-      info.url = abs(new URL(info.url, abs(INFO_URL)).href);
-      return info;
-    });
+  async function fetchInfo() {
+    var r = await timeout(fetch(INFO_URL, { cache: 'no-cache' }), 8000);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    var info = await r.json();
+    info.url = abs(new URL(info.url, abs(INFO_URL)).href);
+    return info;
   }
 
   // Range requests straight from the site, never through the browser's HTTP
@@ -68,7 +69,10 @@
 
   // A pmtiles Source that waits until we know where the tiles come from.
   var resolveSource, rejectSource;
-  var inner = new Promise(function (res, rej) { resolveSource = res; rejectSource = rej; });
+  var inner = new Promise(function (res, rej) {
+    resolveSource = res;
+    rejectSource = rej;
+  });
   inner.catch(function () {});
   // Set once the file this page is streaming has been saved: the same bytes,
   // so later tiles can come from the device if the signal drops mid-ride.
@@ -86,78 +90,88 @@
   protocol.add(new pmtiles.PMTiles(lazySource));
 
   var started = false;
-  function start(opts) {
+  async function start(opts) {
     if (started) return;
     started = true;
-    savedCopy().then(function (saved) {
+    try {
+      var saved = await savedCopy();
       if (saved) {
         resolveSource(new pmtiles.FileSource(new File([saved.blob], saved.url)));
         set({ status: 'saved', saved: { url: saved.url, bytes: saved.bytes, date: saved.date } });
       }
-      return fetchInfo().then(function (info) {
-        if (!saved) {
-          streamingUrl = info.url;
-          resolveSource(streamingSource(info.url));
-        }
-        var current = saved && saved.url === info.url;
-        set({ info: info, status: current ? 'saved' : saved ? 'outdated' : 'online' });
-        if (!current && opts.autoSave) save();
-      }, function (err) {
-        if (saved) return;
-        rejectSource(err);
-        set({ status: 'unavailable', error: err.message });
-      });
-    });
+      var info = await fetchInfo();
+      if (!saved) {
+        streamingUrl = info.url;
+        resolveSource(streamingSource(info.url));
+      }
+      var current = saved && saved.url === info.url;
+      set({ info: info, status: current ? 'saved' : saved ? 'outdated' : 'online' });
+      if (!current && opts.autoSave) await save();
+    } catch (err) {
+      if (state.saved) return;
+      rejectSource(err);
+      set({ status: 'unavailable', error: err.message });
+    }
   }
 
   // Download the whole file into the cache, with progress, then drop old copies.
   var saving = null;
-  function save() {
+  async function save() {
     if (saving || !state.info || !window.caches) return saving;
     var info = state.info;
     set({ status: 'downloading', progress: 0, error: null });
     // 'no-store': the copy goes into our own cache below, and a gzipped copy
     // left in the browser's HTTP cache breaks the range requests (see streamingSource).
-    saving = fetch(info.url, { cache: 'no-store' }).then(function (res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      var total = +res.headers.get('Content-Length') || info.bytes || 0;
-      if (!res.body || !total) return res.blob();
-      var reader = res.body.getReader();
-      var chunks = [], got = 0;
-      function pump() {
-        return reader.read().then(function (r) {
-          if (r.done) return new Blob(chunks);
+    saving = (async function () {
+      try {
+        var res = await fetch(info.url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        var total = +res.headers.get('Content-Length') || info.bytes || 0;
+        if (!res.body || !total) {
+          var blob = await res.blob();
+          if (info.bytes && blob.size !== info.bytes) throw new Error('incomplete download');
+          var cache = await caches.open(CACHE);
+          await cache.put(info.url, new Response(blob, {
+            headers: { 'Content-Type': 'application/octet-stream', 'X-Map-Date': info.date || '' }
+          }));
+          var keys = await cache.keys();
+          await Promise.all(keys.filter(function (k) { return k.url !== info.url; }).map(function (k) { return cache.delete(k); }));
+          if (info.url === streamingUrl) savedSource = new pmtiles.FileSource(new File([blob], info.url));
+          set({ status: 'saved', saved: { url: info.url, bytes: blob.size, date: info.date } });
+          return;
+        }
+        var reader = res.body.getReader();
+        var chunks = [], got = 0;
+        while (true) {
+          var r = await reader.read();
+          if (r.done) break;
           chunks.push(r.value);
           got += r.value.length;
           set({ progress: Math.min(1, got / total) });
-          return pump();
-        });
-      }
-      return pump();
-    }).then(function (blob) {
-      if (info.bytes && blob.size !== info.bytes) throw new Error('incomplete download');
-      return caches.open(CACHE).then(function (cache) {
-        return cache.put(info.url, new Response(blob, {
+        }
+        var blob = new Blob(chunks);
+        if (info.bytes && blob.size !== info.bytes) throw new Error('incomplete download');
+        var cache = await caches.open(CACHE);
+        await cache.put(info.url, new Response(blob, {
           headers: { 'Content-Type': 'application/octet-stream', 'X-Map-Date': info.date || '' }
-        })).then(function () {
-          return cache.keys().then(function (keys) {
-            return Promise.all(keys.filter(function (k) { return k.url !== info.url; }).map(function (k) { return cache.delete(k); }));
-          });
-        });
-      }).then(function () {
+        }));
+        var keys = await cache.keys();
+        await Promise.all(keys.filter(function (k) { return k.url !== info.url; }).map(function (k) { return cache.delete(k); }));
         if (info.url === streamingUrl) savedSource = new pmtiles.FileSource(new File([blob], info.url));
         set({ status: 'saved', saved: { url: info.url, bytes: blob.size, date: info.date } });
-      });
-    }).catch(function (err) {
-      set({ status: state.saved ? 'outdated' : 'online', error: err.message });
-    }).then(function () { saving = null; });
+      } catch (err) {
+        set({ status: state.saved ? 'outdated' : 'online', error: err.message });
+      } finally {
+        saving = null;
+      }
+    })();
     return saving;
   }
 
-  function remove() {
-    return caches.delete(CACHE).then(function () {
-      set({ status: state.info ? 'online' : 'unavailable', saved: null });
-    });
+  async function remove() {
+    if (!window.caches) return;
+    await caches.delete(CACHE);
+    set({ status: state.info ? 'online' : 'unavailable', saved: null });
   }
 
   window.BikeBasemap = {
