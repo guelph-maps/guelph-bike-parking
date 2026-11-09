@@ -9,7 +9,7 @@ type, mixed ones in the colours of the types they contain. Private parking
 GCAT's, with an `<iframe>`. It works with no signal: the whole city's bike map is
 saved on the device (about 3 MB).
 
-Live at **https://guelph.bike/**
+Production at **https://guelph.bike/**
 
 - **Map:** `index.html`: our own cycling base map, address search, filter by rack type or
   covered, city boundary, optional cycling-route overlay, "my location", full-screen
@@ -63,7 +63,7 @@ or an Overpass outage can't reach them. Every Monday `.github/workflows/data-ref
 runs the script and, if anything changed, keeps one pull request open with the new data
 and a summary from `scripts/delta-summary.mjs`: new, removed and changed racks, who
 mapped them, and anything worth checking. Merging it updates beta, and a data release
-puts it live (see [Deploying](#deploying)).
+publishes it to production (see [Deploying](#deploying)).
 
 Address search uses [Photon](https://photon.komoot.io) (OpenStreetMap data) and also
 matches parking names.
@@ -99,7 +99,7 @@ custom schema in `scripts/tiles/schema.yml`, which keeps only what the style dra
 `schema.spec.yml`). They're built on request (Actions → Build base map tiles) from
 Geofabrik's Ontario extract, because each new file is a download on every phone. The
 result is a draft data release holding `guelph.pmtiles`: beta uses it straight away, and
-publishing the draft puts it live. A data release without a tile file keeps the one
+publishing the draft pushes it to production. A data release without a tile file keeps the one
 before it. `scripts/publish-tiles.mjs` copies the file
 into the site under a content-hashed name and writes `tiles/tiles.json`; phones that have
 an older copy download the new one in the background and switch on the next visit.
@@ -137,19 +137,19 @@ the data file from `file://`.
 There are two sites, both built by `.github/workflows/deploy.yml`:
 
 - **Beta**, [beta.guelph.bike](https://beta.guelph.bike/), follows `main`: every merge
-  updates it. It's a separate address, so its offline copy can't touch the live site's.
-  Pages hosts one site per repository, so the build is pushed to
-  `guelph-maps/guelph-bike-parking-beta`, which holds nothing else.
-- **Live**, [guelph.bike](https://guelph.bike/), only changes when someone publishes a
-  GitHub release. It's the latest app release plus the latest data release, and either
+  updates it. It's a separate address, so its offline copy can't touch the production
+  site's. Pages hosts one site per repository, so the build is pushed to
+  `Coehill/guelph-bike-parking-beta`, which holds nothing else.
+- **Production**, [guelph.bike](https://guelph.bike/), only changes when someone publishes
+  a GitHub release. It's the latest app release plus the latest data release, and either
   kind of release publishes the two together.
 
-| Release | Tag | Puts live |
+| Release | Tag | Puts on production |
 |---|---|---|
 | App | `v19.0.0` | the app files at that tag |
 | Data | `data-2026-11-09` | `data/` at that tag, and `guelph.pmtiles` if the release has one |
 
-To go back, run the Deploy map workflow from a release tag and name the older app or data
+To go back, run the Deploy site workflow from a release tag and name the older app or data
 release. Beta shows the next version with `-dev` (`19.0.1-dev`), worked out from the
 latest tag, so nothing needs bumping by hand.
 

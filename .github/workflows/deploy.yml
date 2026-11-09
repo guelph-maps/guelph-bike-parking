@@ -1,6 +1,6 @@
-name: Deploy map
+name: Deploy site
 
-# Merges to main update the beta site. The live site only changes when someone
+# Merges to main update the beta site. The production site only changes when someone
 # publishes a release: v* for the app, data-* for the data.
 on:
   push:
@@ -10,10 +10,10 @@ on:
   workflow_dispatch:
     inputs:
       app:
-        description: 'Live only: app release to publish, to go back to an older one (default: the latest)'
+        description: 'Production only: app release to publish, to go back to an older one (default: the latest)'
         required: false
       data:
-        description: 'Live only: data release to publish, to go back to an older one (default: the latest)'
+        description: 'Production only: data release to publish, to go back to an older one (default: the latest)'
         required: false
 
 permissions:
@@ -58,11 +58,21 @@ jobs:
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
             commit -q -m "Beta build of $GITHUB_SHA"
           GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new" \
-            git push -f git@github.com:guelph-maps/guelph-bike-parking-beta.git main
+            git push -f git@github.com:Coehill/guelph-bike-parking-beta.git main
+      - name: Smoke test the beta site
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsSL --max-time 10 https://beta.guelph.bike/ | grep -q 'Guelph Bike Parking Map'; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error title=Beta site check failed::The beta site did not serve the expected app HTML."
+          exit 1
 
   # The github-pages environment only accepts v* and data-* tags, so GitHub itself
   # refuses a run of this job from main, whatever this file says.
-  live:
+  production:
     if: github.ref_type == 'tag' && (startsWith(github.ref_name, 'v') || startsWith(github.ref_name, 'data-'))
     runs-on: ubuntu-latest
     permissions:
@@ -91,7 +101,7 @@ jobs:
           app=${APP:-$(git tag --list 'v*' --sort=-v:refname | head -1)}
           data=${DATA:-$(git tag --list 'data-*' --sort=-v:refname | head -1)}
           if [ -z "$app" ] || [ -z "$data" ]; then
-            echo "::error title=Nothing to publish::The live site needs an app release and a data release."
+            echo "::error title=Nothing to publish::The production site needs an app release and a data release."
             exit 1
           fi
           echo "app=$app" >> "$GITHUB_OUTPUT"
@@ -108,3 +118,14 @@ jobs:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Smoke test the production site
+        run: |
+          url="${{ steps.deployment.outputs.page_url }}"
+          for i in $(seq 1 20); do
+            if curl -fsSL --max-time 10 "$url" | grep -q 'Guelph Bike Parking Map'; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error title=Production site check failed::The production site did not serve the expected app HTML."
+          exit 1
