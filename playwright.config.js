@@ -3,6 +3,8 @@ const { defineConfig } = require('@playwright/test');
 module.exports = defineConfig({
   testDir: './tests',
   testMatch: '**/*.spec.js',
+  // A test.only left in by accident would skip the rest and still pass.
+  forbidOnly: !!process.env.CI,
   reporter: 'list',
   outputDir: 'test-results',
   use: {
