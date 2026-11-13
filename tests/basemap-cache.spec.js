@@ -63,3 +63,23 @@ test('downloads the offline copy with no-store in WebKit', async ({ page }) => {
   expect(state).toEqual({ status: 'saved', cachedCopies: 1 });
   expect(await page.evaluate(() => window.archiveFetchModes)).toEqual(['no-store']);
 });
+
+test('replaces an outdated offline copy in WebKit', async ({ page }) => {
+  await page.route('**/archive.pmtiles', route => route.fulfill({
+    contentType: 'application/octet-stream',
+    body: 'archive'
+  }));
+
+  const state = await page.evaluate(async () => {
+    const cache = await caches.open('basemap-v1');
+    await cache.put('/old.pmtiles', new Response('old'));
+    await window.BikeBasemap.start({ autoSave: true });
+    return {
+      status: window.BikeBasemap.state().status,
+      savedCopies: (await cache.keys()).map(k => new URL(k.url).pathname)
+    };
+  });
+
+  expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
+  expect(await page.evaluate(() => window.archiveFetchModes)).toEqual(['no-store']);
+});
