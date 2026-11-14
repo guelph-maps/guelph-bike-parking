@@ -398,18 +398,27 @@
       options: { position: 'topleft' },
       onAdd: function () {
         var el = L.DomUtil.create('div', 'bp-title');
+        // The heading is written in index.html so it's there without scripts; it moves in here.
+        var h1 = document.querySelector('main > h1');
         if (embed) {
+          if (h1) h1.remove();
           var fullParams = new URLSearchParams(location.search);
           fullParams.delete('embed');
           var full = location.pathname + (fullParams.toString() ? '?' + fullParams : '');
           el.innerHTML = '<a href="' + esc(full) + '" target="_blank" rel="noopener">Guelph bike parking <span aria-hidden="true">&#8599;</span></a>';
         } else {
-          el.innerHTML = '<h1>Guelph Bike Parking' + (location.hostname === 'beta.guelph.bike' ? ' <span class="bp-beta">Beta</span>' : '') + '</h1>' +
+          if (!h1) {
+            h1 = document.createElement('h1');
+            h1.textContent = 'Guelph Bike Parking';
+          }
+          if (location.hostname === 'beta.guelph.bike') h1.insertAdjacentHTML('beforeend', ' <span class="bp-beta">Beta</span>');
+          el.innerHTML =
             '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>' +
             '<button type="button" class="bp-menu-btn" title="More" aria-label="More" aria-haspopup="true" aria-expanded="false">' +
               '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>' +
               '<span class="bp-menu-dot" hidden></span></button>' +
             '<div class="bp-menu" hidden></div>';
+          el.insertBefore(h1, el.firstChild);
           L.DomEvent.on(el.querySelector('.bp-about-btn'), 'click', showAbout);
           setUpMenu(el);
         }
@@ -738,43 +747,32 @@
   }
 
   // ---- About ---------------------------------------------------------------------
-  var about = null;
+  // The dialog and its wording are in index.html, where search engines can read
+  // them; only the figures and the links that depend on the view are filled in here.
+  var about = document.getElementById('bp-about');
+  if (about) {
+    about.addEventListener('click', function (e) {
+      if (e.target === about || e.target.closest('.bp-about-close')) about.close();
+    });
+    var embedLink = about.querySelector('.bp-about-embed');
+    if (embed && embedLink) embedLink.remove();
+  }
 
   function showAbout() {
-    if (!about) {
-      about = document.createElement('dialog');
-      about.className = 'bp-about';
-      about.setAttribute('aria-labelledby', 'bp-about-title');
-      document.body.appendChild(about);
-      about.addEventListener('click', function (e) {
-        if (e.target === about || e.target.closest('.bp-about-close')) about.close();
-      });
-    }
+    // A saved index.html from before the dialog moved there: fetch the current one.
+    if (!about) { location.reload(); return; }
     var spaces = 0;
     markers.forEach(function (m) { spaces += m.options.capacity || 0; });
     var updated = dataInfo && dataInfo.osm_base
       ? new Date(dataInfo.osm_base).toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' })
       : 'unknown';
-    about.innerHTML =
-      '<div class="bp-about-inner">' +
-        '<button type="button" class="bp-about-close" aria-label="Close">&times;</button>' +
-        '<h2 id="bp-about-title">About this map</h2>' +
-        '<p>Where to lock your bike in Guelph. Each icon shows the kind of rack, and the number shows how many bikes it holds.</p>' +
-        '<p><b>' + fmt.format(markers.length) + '</b> locations and <b>' + fmt.format(spaces) + '</b> counted spaces inside city limits. ' +
-          'Data last updated ' + esc(updated) + '.</p>' +
-        '<h3>Where the data comes from</h3>' +
-        '<p>Everything on this map comes from ' + link('https://www.openstreetmap.org/about', 'OpenStreetMap') +
-          ', the free map anyone can edit. The map checks for changes every week.</p>' +
-        '<h3>Something missing or wrong?</h3>' +
-        '<p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, or ' +
-          link('https://www.openstreetmap.org/edit#map=17/' + map.getCenter().lat.toFixed(5) + '/' + map.getCenter().lng.toFixed(5), 'add new parking') +
-          '. Not a mapper? ' + link(REPO_URL + '/issues/new?title=' + encodeURIComponent('Bike parking correction'), 'Report it here') +
-          '. Adding the number of spaces helps most.</p>' +
-        '<h3>Using it without signal</h3>' +
-        '<div class="bp-offline-box"></div>' +
-        '<p class="bp-about-foot">Map data &copy; OpenStreetMap contributors (ODbL). ' +
-          (embed ? '' : '<a href="embed.html">Embed this map</a> · ') + link(REPO_URL, 'Source code') + '</p>' +
-      '</div>';
+    if (markers.length) {
+      about.querySelector('.bp-about-count').innerHTML =
+        '<b>' + fmt.format(markers.length) + '</b> locations and <b>' + fmt.format(spaces) + '</b> counted spaces inside city limits. ' +
+        'Data last updated ' + esc(updated) + '.';
+    }
+    about.querySelector('.bp-about-add').href =
+      'https://www.openstreetmap.org/edit#map=17/' + map.getCenter().lat.toFixed(5) + '/' + map.getCenter().lng.toFixed(5);
     renderOfflineBox(BikeBasemap.state());
     if (about.showModal) about.showModal();
     else about.setAttribute('open', '');
