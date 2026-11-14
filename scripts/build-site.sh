@@ -46,6 +46,12 @@ if [ "$app_format" != "$data_format" ]; then
   exit 1
 fi
 
+# Files that arrived after the first release. An older app tag doesn't have them, and
+# git archive stops at a path it can't find, so they're only taken where they exist.
+for extra in robots.txt sitemap.xml 404.html; do
+  if git cat-file -e "$app_ref:$extra" 2>/dev/null; then app="$app $extra"; fi
+done
+
 if [[ "$app_ref" =~ ^v[0-9] ]]; then
   stamp=${app_ref#v}
   # On a tag-triggered run, checkout can swap an annotated tag for a lightweight

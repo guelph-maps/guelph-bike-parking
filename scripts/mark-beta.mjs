@@ -4,7 +4,7 @@
 //
 //   node scripts/mark-beta.mjs <site-dir>
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const site = process.argv[2];
@@ -20,8 +20,15 @@ function edit(file, change) {
 
 for (const page of ['index.html', 'embed.html']) {
   edit(page, (html) => html
-    .replace(/<title>(.*?)<\/title>/, '<title>$1 (Beta)</title>\n  <meta name="robots" content="noindex">'));
+    .replace(/<title>(.*?)<\/title>/, '<title>$1 (Beta)</title>\n  <meta name="robots" content="noindex">')
+    // "Don't index this" and "the real page is over there" contradict each other;
+    // search engines are told only the first.
+    .replace(/\n *<link rel="canonical"[^>]*>/, ''));
 }
+
+// Both describe the production site. Without a robots.txt everything may be fetched,
+// which is what lets a crawler see the noindex above.
+for (const file of ['robots.txt', 'sitemap.xml']) rmSync(join(site, file), { force: true });
 
 edit('manifest.webmanifest', (text) => {
   const manifest = JSON.parse(text);
