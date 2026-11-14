@@ -28,7 +28,11 @@ basic version:
         title="Map of bike parking in Guelph"
         width="100%" height="500" style="border:0;max-width:100%;"
         loading="lazy" allow="geolocation; fullscreen" allowfullscreen></iframe>
+<p><a href="https://guelph.bike/">Guelph bike parking map</a>, data from OpenStreetMap</p>
 ```
+
+Keep the link under the map: it's what search engines follow back to the map, and what
+a visitor gets where the iframe is blocked.
 
 Inside an iframe the map switches to a compact layout on its own: the key starts
 collapsed, scroll-wheel zoom waits for a click so it doesn't take over page scrolling,

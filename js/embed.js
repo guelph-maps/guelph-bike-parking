@@ -35,7 +35,10 @@
     var html = '<iframe src="' + url + '" title="Map of bike parking in Guelph" ' +
       'width="' + width + '" height="' + h + '" style="border:0;max-width:100%;" ' +
       'loading="lazy" allow="geolocation; fullscreen" allowfullscreen ' +
-      'referrerpolicy="strict-origin-when-cross-origin"></iframe>';
+      'referrerpolicy="strict-origin-when-cross-origin"></iframe>\n' +
+      // A plain link under the map: the iframe alone gives visitors without it nothing
+      // to follow, and gives search engines no link back to the map.
+      '<p style="margin:4px 0 0;font-size:13px;"><a href="' + base + '">Guelph bike parking map</a>, data from OpenStreetMap</p>';
     code.value = html;
     preview.style.height = h + 'px';
     if (preview.getAttribute('src') !== url) preview.setAttribute('src', url);
