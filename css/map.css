@@ -19,9 +19,6 @@ html, body {
   color: var(--bp-ink);
 }
 
-/* Sits under the map until js/map.js moves it into the title box. */
-main > h1 { position: absolute; top: 18px; left: 22px; margin: 0; font-size: 16px; line-height: 1.2; }
-
 #map {
   position: absolute;
   inset: 0;
@@ -36,6 +33,7 @@ main > h1 { position: absolute; top: 18px; left: 22px; margin: 0; font-size: 16p
 .leaflet-bottom { bottom: env(safe-area-inset-bottom, 0); }
 .leaflet-left { left: env(safe-area-inset-left, 0); }
 .leaflet-right { right: env(safe-area-inset-right, 0); }
+.bp-title-position { z-index: 1001; }
 
 /* ---- Markers ------------------------------------------------------------- */
 

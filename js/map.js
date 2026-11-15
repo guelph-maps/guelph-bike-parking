@@ -397,40 +397,34 @@
 
   // ---- Small controls ----------------------------------------------------------
   function addTitleControl() {
-    var Title = L.Control.extend({
-      options: { position: 'topleft' },
-      onAdd: function () {
-        var el = L.DomUtil.create('div', 'bp-title');
-        // The heading is written in index.html so it's there without scripts; it moves in here.
-        var h1 = document.querySelector('main > h1');
-        if (embed) {
-          if (h1) h1.remove();
-          var fullParams = new URLSearchParams(location.search);
-          fullParams.delete('embed');
-          var full = location.pathname + (fullParams.toString() ? '?' + fullParams : '');
-          el.innerHTML = '<a href="' + esc(full) + '" target="_blank" rel="noopener">Guelph bike parking <span aria-hidden="true">&#8599;</span></a>';
-        } else {
-          if (!h1) {
-            h1 = document.createElement('h1');
-            h1.textContent = 'Guelph Bike Parking';
-          }
-          if (location.hostname === 'beta.guelph.bike') h1.insertAdjacentHTML('beforeend', ' <span class="bp-beta">Beta</span>');
-          el.innerHTML =
-            '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>' +
-            '<button type="button" class="bp-menu-btn" title="More" aria-label="More" aria-haspopup="true" aria-expanded="false">' +
-              '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>' +
-              '<span class="bp-menu-dot" hidden></span></button>' +
-            '<div class="bp-menu" hidden></div>';
-          el.insertBefore(h1, el.firstChild);
-          L.DomEvent.on(el.querySelector('.bp-about-btn'), 'click', showAbout);
-          setUpMenu(el);
-        }
-        L.DomEvent.disableClickPropagation(el);
-        L.DomEvent.disableScrollPropagation(el);
-        return el;
+    var el = document.getElementById('bp-title');
+    var h1 = el.querySelector('h1');
+    if (embed) {
+      if (h1) h1.remove();
+      var fullParams = new URLSearchParams(location.search);
+      fullParams.delete('embed');
+      var full = location.pathname + (fullParams.toString() ? '?' + fullParams : '');
+      el.innerHTML = '<a href="' + esc(full) + '" target="_blank" rel="noopener">Guelph bike parking <span aria-hidden="true">&#8599;</span></a>';
+    } else {
+      if (!h1) {
+        h1 = document.createElement('h1');
+        h1.textContent = 'Guelph Bike Parking';
+        el.insertBefore(h1, el.firstChild);
       }
-    });
-    new Title().addTo(map);
+      if (location.hostname === 'beta.guelph.bike' && !h1.querySelector('.bp-beta')) {
+        h1.insertAdjacentHTML('beforeend', ' <span class="bp-beta">Beta</span>');
+      }
+      el.insertAdjacentHTML('beforeend',
+        '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>' +
+        '<button type="button" class="bp-menu-btn" title="More" aria-label="More" aria-haspopup="true" aria-expanded="false">' +
+          '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>' +
+          '<span class="bp-menu-dot" hidden></span></button>' +
+        '<div class="bp-menu" hidden></div>');
+      L.DomEvent.on(el.querySelector('.bp-about-btn'), 'click', showAbout);
+      setUpMenu(el);
+    }
+    L.DomEvent.disableClickPropagation(el);
+    L.DomEvent.disableScrollPropagation(el);
   }
 
   function addFullscreenControl() {
@@ -625,7 +619,9 @@
         return el;
       }
     });
-    new Search().addTo(map);
+    var control = new Search();
+    control.addTo(map);
+    document.querySelector('.bp-title-position').appendChild(control.getContainer());
   }
 
   function addLocateControl() {
