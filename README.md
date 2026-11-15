@@ -132,6 +132,18 @@ there once the whole file has been saved.
 Opening `index.html` straight from disk won't work, because browsers block loading
 the data file from `file://`.
 
+## Tests
+
+The browser-cache tests run in Playwright WebKit, the engine shared with Safari. They
+check that streamed PMTiles range requests and offline downloads use `no-store`.
+This is WebKit coverage, not a test of the Safari app or iOS Safari.
+
+```sh
+npm ci
+npx playwright install --with-deps webkit
+npm run test:webkit
+```
+
 ## Deploying
 
 There are two sites, both built by `.github/workflows/deploy.yml`:
