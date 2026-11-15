@@ -135,14 +135,28 @@ the data file from `file://`.
 ## Tests
 
 The browser-cache tests run in Playwright WebKit, the engine shared with Safari. They
-check that streamed PMTiles range requests and offline downloads use `no-store`.
-This is WebKit coverage, not a test of the Safari app or iOS Safari.
+check that streamed PMTiles range requests and offline downloads use `no-store`,
+and that saving a new offline copy removes the outdated one. PMTiles responses are
+mocked; this is WebKit coverage, not a test of the Safari app, iOS Safari or live hosting.
+
+Run locally with Node.js 22. The tests start their own Node.js static server; Python
+is not required.
 
 ```sh
 npm ci
 npx playwright install --with-deps webkit
 npm run test:webkit
 ```
+
+The [WebKit workflow](.github/workflows/webkit-tests.yml) runs on pushes to `main`,
+pull requests and manual dispatch, using Node.js 22 inside the Playwright Docker
+image. Keep the image version in sync with the Playwright version in
+`package-lock.json`. The container supplies browser system dependencies;
+`npx playwright install webkit` reuses its browser or downloads the matching version
+if needed, without `--with-deps`.
+
+New pull-request runs cancel older runs for the same PR. Every `main` and manually
+dispatched run is preserved, including pending runs.
 
 ## Deploying
 
