@@ -7,6 +7,7 @@ test('keeps the single page heading outside the application map', async ({ page 
   await expect(page.locator('h1')).toHaveCount(1);
   await expect(heading).toHaveText('Guelph Bike Parking');
   expect(await heading.evaluate(el => el.closest('#map'))).toBeNull();
+  await expect(page.locator('#bp-title .bp-about-btn')).toBeVisible();
 });
 
 test('removes the heading in embed mode', async ({ page }) => {
