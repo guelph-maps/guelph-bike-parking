@@ -783,7 +783,14 @@
         ', so it works with no signal.' + safari + '</p>' +
         '<button type="button" class="bp-link-btn" data-act="remove">Remove saved map</button>';
     } else if (s.status === 'outdated') {
-      html = '<p>A saved map is on this device. A newer one is available.' + safari + '</p><button type="button" data-act="save">Update saved map' + size + '</button>';
+      // A new map is built every week; phones fetch it by themselves once
+      // theirs is a month behind (basemap.js shouldUpdate), or on demand here.
+      var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec((s.saved && s.saved.date) || '');
+      var savedOn = m
+        ? 'The map saved on this device is from ' + new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) + '.'
+        : 'A saved map is on this device.';
+      html = '<p>' + savedOn + ' A newer one is ready, and yours updates by itself once it’s a month behind.' +
+        safari + '</p><button type="button" data-act="save">Update saved map' + size + '</button>';
     } else if (s.status === 'online') {
       html = '<p>Save the whole Guelph map on this device so it works with no signal. Parking data is kept either way.' + safari + '</p>' +
         '<button type="button" data-act="save">Save map for offline' + size + '</button>';
