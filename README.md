@@ -13,8 +13,9 @@ Production at **https://guelph.bike/**
 
 - **Map:** `index.html`: our own cycling base map, address search, filter by rack type or
   covered, city boundary, optional cycling-route overlay, "my location", full-screen
-  button, and a menu behind the title (or its "i") with the About panel, the version and
-  its release date (and a dot when a newer one is ready) and "Clear cache & reload"
+  button, and an About panel behind the title (or its "i") that also gives the version and
+  its release date, "Update now" when a newer one is ready (the "i" gets a dot), and
+  "Clear cache & reload"
 - **Embed code generator:** `embed.html`
 - **Data:** generated into `data/` from [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL)
 
