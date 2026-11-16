@@ -768,6 +768,14 @@
       return d ? new Date(d + 'T12:00:00Z').toLocaleDateString('en-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '';
     }
     var size = s.info ? mb(s.info.bytes) : '';
+    // Safari in a tab deletes what a site saves after about a week without a
+    // visit. Say so in the same sentence as "works with no signal", as its
+    // condition, not as a separate paragraph that reads like a contradiction.
+    var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var installed = navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
+    var safari = ios && !installed && !embed
+      ? ' Safari deletes what this site saves after about a week without a visit, unless you tap Share → <b>Add to Home Screen</b> and open the map from there.'
+      : '';
     var html;
     if (s.status === 'downloading') {
       html = '<p>Saving the map… ' + Math.round(s.progress * 100) + '%</p>' +
@@ -775,13 +783,13 @@
     } else if (s.status === 'saved') {
       html = '<p>The whole Guelph map is saved on this device' + mb(s.saved && s.saved.bytes) +
         (s.saved && s.saved.date ? ', street data from ' + day(s.saved.date) : '') +
-        ', so it works with no signal.</p>' +
+        ', so it works with no signal.' + safari + '</p>' +
         '<button type="button" class="bp-link-btn" data-act="remove">Remove saved map</button>';
     } else if (s.status === 'outdated') {
       html = '<p>A saved map is on this device' + (s.saved && s.saved.date ? ' (street data from ' + day(s.saved.date) + ')' : '') +
-        '. A newer one is available.</p><button type="button" data-act="save">Update saved map' + size + '</button>';
+        '. A newer one is available.' + safari + '</p><button type="button" data-act="save">Update saved map' + size + '</button>';
     } else if (s.status === 'online') {
-      html = '<p>Save the whole Guelph map on this device so it works with no signal. Parking data is always kept.</p>' +
+      html = '<p>Save the whole Guelph map on this device so it works with no signal. Parking data is kept either way.' + safari + '</p>' +
         '<button type="button" data-act="save">Save map for offline' + size + '</button>';
     } else if (s.status === 'unavailable') {
       html = '<p>The bike map can’t be reached right now, so you’re seeing the street map.</p>';
@@ -789,11 +797,6 @@
       html = '<p>Checking for a saved map…</p>';
     }
     if (s.error && s.status !== 'unavailable') html += '<p class="bp-offline-error">Last attempt failed: ' + esc(s.error) + '. Try again on Wi-Fi.</p>';
-    var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    var installed = navigator.standalone || window.matchMedia('(display-mode: standalone)').matches;
-    if (ios && !installed && !embed) {
-      html += '<p class="bp-offline-hint">On iPhone and iPad, tap Share → <b>Add to Home Screen</b>. Otherwise Safari clears the saved map after about a week without a visit.</p>';
-    }
     box.innerHTML = html;
     var btn = box.querySelector('[data-act]');
     if (btn) btn.addEventListener('click', function () {
