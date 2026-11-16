@@ -39,6 +39,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/get-tiles.sh
+      - name: Keep the base map that's live now, for pages still streaming it
+        run: scripts/get-live-tiles.sh https://beta.guelph.bike
       - name: Collect site files
         run: |
           scripts/build-site.sh HEAD HEAD
@@ -137,6 +139,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: scripts/get-tiles.sh "${{ steps.pick.outputs.data }}"
+      - name: Keep the base map that's live now, for pages still streaming it
+        run: scripts/get-live-tiles.sh https://guelph.bike
       - uses: actions/configure-pages@v5
       - name: Collect site files
         env:

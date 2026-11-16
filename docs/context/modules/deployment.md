@@ -6,6 +6,8 @@ sourcePaths:
   - "scripts/build-site.sh"
   - "scripts/delta-summary.mjs"
   - "scripts/get-tiles.sh"
+  - "scripts/get-live-tiles.sh"
+  - "scripts/tiles-changed.mjs"
   - "scripts/mark-beta.mjs"
   - "DATA_FORMAT"
   - "data/FORMAT"
@@ -28,9 +30,10 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 
 - [deploy.yml](../../../.github/workflows/deploy.yml): Beta publishes from `main`; production only runs on `v*` and `data-*` tags; beta push uses `ssh-agent` with `BETA_DEPLOY_KEY` and `BETA_DEPLOY_KEY_PASSPHRASE`.
 - [data-refresh.yml](../../../.github/workflows/data-refresh.yml): Weekly automation fetches fresh OSM data and opens or updates a PR against `main`.
-- [tiles.yml](../../../.github/workflows/tiles.yml): Manual workflow builds a draft `data-*` release and pushes the new PMTiles asset into the beta path.
+- [tiles.yml](../../../.github/workflows/tiles.yml): Weekly (Mondays) and manual workflow builds a draft `data-*` release with the new PMTiles asset, replaces older drafts it made, and updates beta; a scheduled week whose tiles match the last file (`scripts/tiles-changed.mjs`) publishes nothing.
 - [build-site.sh](../../../scripts/build-site.sh): Validates app/data refs and `DATA_FORMAT` / `data/FORMAT`, then assembles `_site` from the selected app and data tags.
 - [get-tiles.sh](../../../scripts/get-tiles.sh): Downloads the relevant `guelph.pmtiles` release asset for beta or production.
+- [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now, so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
 - [mark-beta.mjs](../../../scripts/mark-beta.mjs): Marks a built site as beta before pushing it to the beta Pages repository.
 - [DATA_FORMAT](../../../DATA_FORMAT): App compatibility contract used by the deployment preflight.
 - [data/FORMAT](../../../data/FORMAT): Data compatibility marker used alongside the app format.
@@ -49,6 +52,7 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - `DATA_FORMAT` and `data/FORMAT` must match exactly. A mismatch aborts the deploy and leaves the site on the last known-good release.
 - Beta requires `tiles/tiles.json` inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
 - `scripts/get-tiles.sh` downloads the newest matching `guelph.pmtiles` asset for the data tag; production refuses to deploy if none exists.
+- Weekly tile builds are safe for phones because `js/basemap.js` only replaces a saved base map once it is 30 days behind (or on Android Wi-Fi). Raising the cadence further, or shipping fresh tiles to production, relies on that client rule being in the live app release.
 - Beta publish exits early when either deploy secret is missing or when `BETA_DEPLOY_KEY` is unencrypted.
 
 ## Gotchas and non-obvious behaviour

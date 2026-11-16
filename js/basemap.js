@@ -4,14 +4,27 @@
 // the site in small pieces (HTTP range requests).
 //
 // tiles/tiles.json names the current file: { "url", "bytes", "date" }. A new
-// release gets a new file name, downloaded in the background and used from
-// the next visit on, so one session never mixes two versions.
+// build gets a new file name, downloaded in the background (see shouldUpdate)
+// and used from the next visit on, so one session never mixes two versions.
 (function () {
   'use strict';
 
   var INFO_URL = 'tiles/tiles.json';
   var CACHE = 'basemap-v1';
   var KEY = 'guelph'; // what the style's pmtiles:// URL points at
+  var STALE_DAYS = 30;
+
+  // A phone with an older saved map: download the new one now? A fresh file
+  // is built every week, so "newer" alone would cost every phone 3 MB a week.
+  // Update once the saved copy's OpenStreetMap data is a month behind, or
+  // sooner where the browser says it's on Wi-Fi. Only Chrome on Android
+  // says; iPhones get the age rule. Save-Data turns autoSave off altogether.
+  function shouldUpdate(saved, info) {
+    var c = navigator.connection;
+    if (c && (c.type === 'wifi' || c.type === 'ethernet')) return true;
+    var behind = (Date.parse(info.date) - Date.parse(saved.date)) / 864e5;
+    return !(behind < STALE_DAYS); // a missing date counts as old
+  }
 
   var listeners = [];
   var state = { status: 'checking', saved: null, info: null, progress: 0, error: null };
@@ -106,7 +119,7 @@
       }
       var current = saved && saved.url === info.url;
       set({ info: info, status: current ? 'saved' : saved ? 'outdated' : 'online' });
-      if (!current && opts.autoSave) await save();
+      if (!current && opts.autoSave && (!saved || shouldUpdate(saved, info))) await save();
     } catch (err) {
       if (state.saved) return;
       rejectSource(err);

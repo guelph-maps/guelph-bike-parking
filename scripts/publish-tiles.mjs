@@ -4,6 +4,8 @@
 // js/basemap.js: { "url", "bytes", "date" }. Phones keep the whole file, so a
 // new name is how they learn there's a newer map.
 //
+// With build/previous.pmtiles present, that file is kept beside it too.
+//
 //   node scripts/publish-tiles.mjs [out-dir]     (default: tiles/)
 
 import { createHash } from 'node:crypto';
@@ -34,9 +36,25 @@ function dataDate() {
   }
 }
 
+// The file the site serves now (scripts/get-live-tiles.sh), kept under its own
+// name so pages still streaming it don't lose their tiles. tiles.json doesn't
+// mention it, so nothing new starts on it, and the next deploy drops it.
+let previous = null;
+try {
+  const old = readFileSync(join(ROOT, 'build', 'previous.pmtiles'));
+  const oldName = `guelph-${createHash('sha256').update(old).digest('hex').slice(0, 12)}.pmtiles`;
+  if (oldName !== name) previous = { name: oldName, bytes: old };
+} catch {}
+
 mkdirSync(outDir, { recursive: true });
-for (const f of readdirSync(outDir)) if (/^guelph-.*\.pmtiles$/.test(f) && f !== name) rmSync(join(outDir, f));
+for (const f of readdirSync(outDir)) {
+  if (/^guelph-.*\.pmtiles$/.test(f) && f !== name && f !== previous?.name) rmSync(join(outDir, f));
+}
 writeFileSync(join(outDir, name), bytes);
+if (previous) {
+  writeFileSync(join(outDir, previous.name), previous.bytes);
+  console.log(`Kept the previous ${previous.name} for pages still streaming it`);
+}
 const info = { url: name, bytes: bytes.length, date: dataDate() };
 writeFileSync(join(outDir, 'tiles.json'), JSON.stringify(info) + '\n');
 console.log(`Published ${name} (${(bytes.length / 1048576).toFixed(2)} MB, data ${info.date}) to ${outDir}`);
