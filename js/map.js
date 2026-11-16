@@ -406,11 +406,13 @@
           var full = location.pathname + (fullParams.toString() ? '?' + fullParams : '');
           el.innerHTML = '<a href="' + esc(full) + '" target="_blank" rel="noopener">Guelph bike parking <span aria-hidden="true">&#8599;</span></a>';
         } else {
-          el.innerHTML = '<h1>Guelph Bike Parking' + (location.hostname === 'beta.guelph.bike' ? ' <span class="bp-beta">Beta</span>' : '') + '</h1>' +
-            '<button type="button" class="bp-menu-btn" title="About and version" aria-label="About and version" aria-haspopup="true" aria-expanded="false">' +
-              '<span aria-hidden="true">i</span><span class="bp-menu-dot" hidden></span></button>' +
-            '<div class="bp-menu" hidden></div>';
-          setUpMenu(el);
+          el.innerHTML = '<h1>Guelph Bike Parking</h1>' +
+            (location.hostname === 'beta.guelph.bike' ? '<span class="bp-beta">Beta</span>' : '') +
+            '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map" aria-haspopup="dialog">' +
+              '<span aria-hidden="true">i</span><span class="bp-about-dot" hidden></span></button>';
+          // The whole title opens About; the button is there for the keyboard.
+          el.classList.add('is-tappable');
+          el.addEventListener('click', showAbout);
         }
         L.DomEvent.disableClickPropagation(el);
         L.DomEvent.disableScrollPropagation(el);
@@ -418,48 +420,6 @@
       }
     });
     new Title().addTo(map);
-  }
-
-  // The title's menu, behind the "i" or a tap anywhere on the title: About,
-  // which release this is, and a way to start fresh.
-  function setUpMenu(el) {
-    var btn = el.querySelector('.bp-menu-btn');
-    var box = el.querySelector('.bp-menu');
-    function open() {
-      renderMenu(box);
-      box.hidden = false;
-      btn.setAttribute('aria-expanded', 'true');
-      el.classList.add('is-menu-open');
-      checkForUpdate();
-    }
-    function close() {
-      box.hidden = true;
-      btn.setAttribute('aria-expanded', 'false');
-      el.classList.remove('is-menu-open');
-    }
-    // The whole title is the target; the button is there for the keyboard.
-    el.classList.add('has-menu');
-    el.addEventListener('click', function (e) {
-      if (box.contains(e.target)) return;
-      if (box.hidden) open(); else close();
-    });
-    box.addEventListener('click', function (e) {
-      var act = e.target.closest('[data-act]');
-      if (!act) return;
-      if (act.dataset.act === 'about') { close(); showAbout(); return; }
-      act.disabled = true;
-      if (act.dataset.act === 'clear') {
-        act.textContent = 'Clearing…';
-        clearCacheAndReload();
-      } else {
-        act.textContent = 'Updating…';
-        location.reload(); // the new release already controls the page
-      }
-    });
-    document.addEventListener('pointerdown', function (e) { if (!box.hidden && !el.contains(e.target)) close(); }, true);
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && !box.hidden) { close(); btn.focus(); }
-    });
   }
 
   function addFullscreenControl() {
@@ -753,9 +713,21 @@
       about.setAttribute('aria-labelledby', 'bp-about-title');
       document.body.appendChild(about);
       about.addEventListener('click', function (e) {
-        if (e.target === about || e.target.closest('.bp-about-close')) about.close();
+        if (e.target === about || e.target.closest('.bp-about-close')) { about.close(); return; }
+        // The offline box's own buttons handle themselves.
+        var act = e.target.closest('[data-act="update"], [data-act="clear"]');
+        if (!act) return;
+        act.disabled = true;
+        if (act.dataset.act === 'clear') {
+          act.textContent = 'Clearing…';
+          clearCacheAndReload();
+        } else {
+          act.textContent = 'Updating…';
+          location.reload(); // the new release already controls the page
+        }
       });
     }
+    checkForUpdate();
     var spaces = 0;
     markers.forEach(function (m) { spaces += m.options.capacity || 0; });
     var updated = dataInfo && dataInfo.osm_base
@@ -765,6 +737,7 @@
       '<div class="bp-about-inner">' +
         '<button type="button" class="bp-about-close" aria-label="Close">&times;</button>' +
         '<h2 id="bp-about-title">About this map</h2>' +
+        '<div class="bp-release-new" hidden></div>' +
         '<p>Where to lock your bike in Guelph. Each icon shows the kind of rack, and the number shows how many bikes it holds.</p>' +
         '<p><b>' + fmt.format(markers.length) + '</b> locations and <b>' + fmt.format(spaces) + '</b> counted spaces inside city limits. ' +
           'Data last updated ' + esc(updated) + '.</p>' +
@@ -775,10 +748,14 @@
           '. Not a mapper? ' + link(REPO_URL + '/issues/new?title=' + encodeURIComponent('Bike parking correction'), 'Report it here') + '.</p>' +
         '<h3>Using it without signal</h3>' +
         '<div class="bp-offline-box"></div>' +
-        '<p class="bp-about-foot">Map data &copy; OpenStreetMap contributors (ODbL). ' +
-          (embed ? '' : '<a href="embed.html">Embed this map</a> · ') + link(REPO_URL, 'Source code') + '</p>' +
+        '<div class="bp-about-foot">' +
+          '<p>Map data &copy; OpenStreetMap contributors (ODbL). ' +
+            (embed ? '' : '<a href="embed.html">Embed this map</a> · ') + link(REPO_URL, 'Source code') + '</p>' +
+          '<p class="bp-release-line"></p>' +
+        '</div>' +
       '</div>';
     renderOfflineBox(BikeBasemap.state());
+    renderRelease();
     if (about.showModal) about.showModal();
     else about.setAttribute('open', '');
   }
@@ -850,7 +827,7 @@
   // ---- Release and cache ---------------------------------------------------------
   // Each deploy stamps sw.js with the app's release. A new one installs in the
   // background and takes over at once (skipWaiting), but this page keeps
-  // running the code it opened with, so the menu offers a reload.
+  // running the code it opened with, so About offers a reload.
   var release = { loaded: null, newer: null };
   var lastCheck = 0;
 
@@ -858,7 +835,7 @@
     return new Promise(function (resolve) {
       if (!worker) return resolve(null);
       var channel = new MessageChannel();
-      var t = setTimeout(function () { resolve(null); }, 3000); // releases before the menu don't answer
+      var t = setTimeout(function () { resolve(null); }, 3000); // releases before the version check don't answer
       channel.port1.onmessage = function (e) {
         clearTimeout(t);
         var d = e.data; // releases before the date answer with the bare version
@@ -870,14 +847,14 @@
 
   if (sw) {
     var hadController = !!sw.controller;
-    askRelease(sw.controller).then(function (b) { if (b) { release.loaded = b; syncMenu(); } });
+    askRelease(sw.controller).then(function (b) { if (b) { release.loaded = b; syncRelease(); } });
     sw.addEventListener('controllerchange', function () {
       askRelease(sw.controller).then(function (b) {
         // On a first visit the page came from the network, so it is this release.
         if (!hadController && !release.loaded) release.loaded = b;
         else if (b && (!release.loaded || b.build !== release.loaded.build)) release.newer = b;
         hadController = true;
-        syncMenu();
+        syncRelease();
       });
     });
     document.addEventListener('visibilitychange', function () { if (!document.hidden) checkForUpdate(); });
@@ -919,35 +896,40 @@
     return (/-dev\./.test(r.build) ? 'Updated ' : 'Released ') + day;
   }
 
-  function renderMenu(box) {
+  // In the About panel: a new version up top, where a phone shows it without
+  // scrolling, and which version this is in the footer, with a way to start fresh.
+  function renderRelease() {
+    var top = about && about.querySelector('.bp-release-new');
+    var line = about && about.querySelector('.bp-release-line');
+    if (!top || !line) return;
+    top.hidden = !release.newer;
+    top.innerHTML = release.newer
+      ? '<p><span class="bp-new-tag">New</span> ' + esc(releaseLabel(release.newer)) + ' is ready.</p>' +
+        '<button type="button" data-act="update">Update now</button>'
+      : '';
     var s = BikeBasemap.state();
     var bytes = (s.saved && s.saved.bytes) || (s.info && s.info.bytes);
     var date = releaseDate(release.loaded);
-    var html = '<button type="button" class="bp-menu-item" data-act="about">About this map</button>' +
-      '<p class="bp-menu-version">' + esc(releaseLabel(release.loaded)) +
-      (date ? '<br><span class="bp-menu-date">' + esc(date) + '</span>' : '') + '</p>';
-    if (release.newer) html += '<p class="bp-menu-new"><span>New</span> ' + esc(releaseLabel(release.newer)) + ' is ready</p>';
-    html += '<div class="bp-menu-actions">' +
-      (release.newer ? '<button type="button" data-act="update">Update now</button>' : '') +
-      '<button type="button" data-act="clear"' + (navigator.onLine ? '' : ' disabled') + '>Clear cache &amp; reload</button>' +
-      '</div><p class="bp-menu-hint">' + (navigator.onLine
-        ? 'Clearing downloads the app and the bike map again' + (bytes ? ' (about ' + Math.max(1, Math.round(bytes / 1048576)) + ' MB)' : '') + '.'
-        : 'Clearing needs a connection.') + '</p>';
-    box.innerHTML = html;
+    line.innerHTML = esc(releaseLabel(release.loaded)) +
+      (date ? ', ' + esc(date.charAt(0).toLowerCase() + date.slice(1)) : '') + '. ' +
+      (navigator.onLine
+        ? '<button type="button" class="bp-link-btn" data-act="clear">Clear cache &amp; reload</button>' +
+          (bytes ? ' (downloads about ' + Math.max(1, Math.round(bytes / 1048576)) + ' MB)' : '')
+        : 'Clearing the cache needs a connection.');
   }
 
-  function syncMenu() {
-    var el = document.querySelector('.bp-title');
-    var box = el && el.querySelector('.bp-menu');
-    if (!box) return;
-    el.querySelector('.bp-menu-dot').hidden = !release.newer;
-    var btn = el.querySelector('.bp-menu-btn');
-    btn.title = release.newer ? 'About and version: a new version is ready' : 'About and version';
-    btn.setAttribute('aria-label', btn.title);
-    if (!box.hidden) renderMenu(box);
+  // A newer version puts a dot on the "i", and shows in About if it's open.
+  function syncRelease() {
+    var btn = document.querySelector('.bp-about-btn');
+    if (btn) {
+      btn.querySelector('.bp-about-dot').hidden = !release.newer;
+      btn.title = release.newer ? 'About this map: a new version is ready' : 'About this map';
+      btn.setAttribute('aria-label', btn.title);
+    }
+    if (about && about.open) renderRelease();
   }
-  window.addEventListener('online', syncMenu);
-  window.addEventListener('offline', syncMenu);
+  window.addEventListener('online', syncRelease);
+  window.addEventListener('offline', syncRelease);
 
   // ---- Load data -------------------------------------------------------------
   fetch(BOUNDARY_URL)
