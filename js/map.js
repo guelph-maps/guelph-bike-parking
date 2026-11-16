@@ -405,12 +405,9 @@
           el.innerHTML = '<a href="' + esc(full) + '" target="_blank" rel="noopener">Guelph bike parking <span aria-hidden="true">&#8599;</span></a>';
         } else {
           el.innerHTML = '<h1>Guelph Bike Parking' + (location.hostname === 'beta.guelph.bike' ? ' <span class="bp-beta">Beta</span>' : '') + '</h1>' +
-            '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>' +
-            '<button type="button" class="bp-menu-btn" title="More" aria-label="More" aria-haspopup="true" aria-expanded="false">' +
-              '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>' +
-              '<span class="bp-menu-dot" hidden></span></button>' +
+            '<button type="button" class="bp-menu-btn" title="About and version" aria-label="About and version" aria-haspopup="true" aria-expanded="false">' +
+              '<span aria-hidden="true">i</span><span class="bp-menu-dot" hidden></span></button>' +
             '<div class="bp-menu" hidden></div>';
-          L.DomEvent.on(el.querySelector('.bp-about-btn'), 'click', showAbout);
           setUpMenu(el);
         }
         L.DomEvent.disableClickPropagation(el);
@@ -421,7 +418,8 @@
     new Title().addTo(map);
   }
 
-  // The ⋮ menu: which release this is, and a way to start fresh.
+  // The title's menu, behind the "i" or a tap anywhere on the title: About,
+  // which release this is, and a way to start fresh.
   function setUpMenu(el) {
     var btn = el.querySelector('.bp-menu-btn');
     var box = el.querySelector('.bp-menu');
@@ -437,10 +435,16 @@
       btn.setAttribute('aria-expanded', 'false');
       el.classList.remove('is-menu-open');
     }
-    btn.addEventListener('click', function () { if (box.hidden) open(); else close(); });
+    // The whole title is the target; the button is there for the keyboard.
+    el.classList.add('has-menu');
+    el.addEventListener('click', function (e) {
+      if (box.contains(e.target)) return;
+      if (box.hidden) open(); else close();
+    });
     box.addEventListener('click', function (e) {
       var act = e.target.closest('[data-act]');
       if (!act) return;
+      if (act.dataset.act === 'about') { close(); showAbout(); return; }
       act.disabled = true;
       if (act.dataset.act === 'clear') {
         act.textContent = 'Clearing…';
@@ -920,7 +924,8 @@
     var s = BikeBasemap.state();
     var bytes = (s.saved && s.saved.bytes) || (s.info && s.info.bytes);
     var date = releaseDate(release.loaded);
-    var html = '<p class="bp-menu-version">' + esc(releaseLabel(release.loaded)) +
+    var html = '<button type="button" class="bp-menu-item" data-act="about">About this map</button>' +
+      '<p class="bp-menu-version">' + esc(releaseLabel(release.loaded)) +
       (date ? '<br><span class="bp-menu-date">' + esc(date) + '</span>' : '') + '</p>';
     if (release.newer) html += '<p class="bp-menu-new"><span>New</span> ' + esc(releaseLabel(release.newer)) + ' is ready</p>';
     html += '<div class="bp-menu-actions">' +
@@ -938,7 +943,7 @@
     if (!box) return;
     el.querySelector('.bp-menu-dot').hidden = !release.newer;
     var btn = el.querySelector('.bp-menu-btn');
-    btn.title = release.newer ? 'More: a new version is ready' : 'More';
+    btn.title = release.newer ? 'About and version: a new version is ready' : 'About and version';
     btn.setAttribute('aria-label', btn.title);
     if (!box.hidden) renderMenu(box);
   }

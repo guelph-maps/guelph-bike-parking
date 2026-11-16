@@ -129,21 +129,21 @@ html, body {
   margin-left: 2px; padding: 1px 6px; border-radius: 999px; background: var(--bp-accent); color: #fff;
   font-size: 11px; font-weight: 600; vertical-align: 2px;
 }
-.bp-about-btn {
-  flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--bp-muted); background: none;
-  color: var(--bp-muted); font: italic 700 13px/1 Georgia, serif; cursor: pointer; padding: 0;
-}
-.bp-about-btn:hover, .bp-about-btn:focus-visible { color: var(--bp-accent); border-color: var(--bp-accent); }
 
-/* The ⋮ menu: release and cache. Later controls in the corner would paint over it. */
+/* The title's menu: About, release and cache. The whole title opens it. Later
+   controls in the corner would paint over it. */
+.bp-title.has-menu { cursor: pointer; }
 .bp-title.is-menu-open { z-index: 1001; }
+.bp-menu { cursor: default; }
 .bp-menu-btn {
-  position: relative; flex: none; width: 28px; height: 28px; margin: -2px -6px -2px -4px; border: 0; border-radius: 50%;
-  background: none; color: var(--bp-muted); fill: currentColor; cursor: pointer; padding: 0; display: grid; place-items: center;
+  position: relative; flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--bp-muted);
+  background: none; color: var(--bp-muted); font: italic 700 13px/1 Georgia, serif; cursor: pointer; padding: 0;
 }
-.bp-menu-btn:hover, .bp-menu-btn:focus-visible, .bp-menu-btn[aria-expanded="true"] { color: var(--bp-accent); background: #f1f5f9; }
+.bp-title:hover .bp-menu-btn, .bp-menu-btn:focus-visible, .bp-menu-btn[aria-expanded="true"] {
+  color: var(--bp-accent); border-color: var(--bp-accent);
+}
 .bp-menu-dot {
-  position: absolute; top: 2px; right: 3px; width: 9px; height: 9px; border-radius: 50%;
+  position: absolute; top: -4px; right: -4px; width: 9px; height: 9px; border-radius: 50%;
   background: #ea580c; border: 2px solid var(--bp-panel);
 }
 .bp-menu-dot[hidden] { display: none; }
@@ -154,6 +154,13 @@ html, body {
 }
 .bp-menu[hidden] { display: none; }
 .bp-menu p { margin: 0 0 8px; }
+.bp-menu-item {
+  display: block; width: calc(100% + 12px); min-height: 36px; margin: -6px -6px 6px; padding: 6px;
+  border: 0; border-radius: 8px; background: none; text-align: left; cursor: pointer;
+  font: inherit; font-weight: 600; color: var(--bp-accent);
+}
+.bp-menu-item:hover, .bp-menu-item:focus-visible { background: #f1f5f9; outline: none; }
+.bp-menu-item + .bp-menu-version { border-top: 1px solid #e2e8f0; padding-top: 8px; }
 .bp-menu-version { color: var(--bp-muted); }
 .bp-menu-date { font-size: 12px; }
 .bp-menu-new { font-weight: 600; }
