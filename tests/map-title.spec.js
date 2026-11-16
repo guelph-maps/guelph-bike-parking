@@ -10,6 +10,40 @@ test('keeps the single page heading outside the application map', async ({ page 
   await expect(page.locator('#bp-title .bp-about-btn')).toBeVisible();
 });
 
+test('keeps the mobile key above the title and search unless the menu is open', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 });
+  await page.goto('/?legend=closed');
+
+  async function expectAbove(selector, underneath) {
+    await expect.poll(() => page.locator(selector).evaluate((el, underneath) => {
+      const rect = el.getBoundingClientRect();
+      const below = document.querySelector(underneath).getBoundingClientRect();
+      const left = Math.max(rect.left, below.left);
+      const right = Math.min(rect.right, below.right);
+      const top = Math.max(rect.top, below.top);
+      const bottom = Math.min(rect.bottom, below.bottom);
+      return left < right && top < bottom &&
+        el.contains(document.elementFromPoint((left + right) / 2, (top + bottom) / 2));
+    }, underneath)).toBe(true);
+  }
+
+  await page.locator('.bp-legend-toggle').click();
+  await expectAbove('.bp-legend', '#bp-title');
+  await expectAbove('.bp-legend', '.bp-search');
+
+  const more = page.getByRole('button', { name: 'More', exact: true });
+  await more.focus();
+  await more.press('Enter');
+  await expect(page.locator('.bp-menu')).toBeVisible();
+  await expectAbove('.bp-menu', '.bp-legend');
+  await expectAbove('.bp-menu', '.bp-search');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.bp-menu')).toBeHidden();
+  await expectAbove('.bp-legend', '#bp-title');
+  await expectAbove('.bp-legend', '.bp-search');
+});
+
 test('removes the heading in embed mode', async ({ page }) => {
   await page.goto('/?embed=1&legend=closed');
 
