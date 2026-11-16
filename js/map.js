@@ -77,7 +77,8 @@
   // Save the whole map on the device, except inside other sites' pages (each
   // embedding site would keep its own copy) or when the phone asks to save data.
   var saveData = navigator.connection && navigator.connection.saveData;
-  BikeBasemap.start({ autoSave: !embed && !saveData });
+  var autoSave = !embed && !saveData;
+  BikeBasemap.start({ autoSave: autoSave });
   BikeBasemap.onChange(function (s) {
     if (s.status === 'unavailable' && map.hasLayer(bikeMap)) {
       map.removeLayer(bikeMap);
@@ -785,11 +786,12 @@
     } else if (s.status === 'outdated') {
       // A new map is built every week; phones fetch it by themselves once
       // theirs is a month behind (basemap.js shouldUpdate), or on demand here.
+      // Embeds and Save-Data never fetch by themselves, so don't promise it there.
       var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec((s.saved && s.saved.date) || '');
       var savedOn = m
         ? 'The map saved on this device is from ' + new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) + '.'
         : 'A saved map is on this device.';
-      html = '<p>' + savedOn + ' A newer one is ready, and yours updates by itself once it’s a month behind.' +
+      html = '<p>' + savedOn + ' A newer one is ready' + (autoSave ? ', and yours updates by itself once it’s a month behind.' : '.') +
         safari + '</p><button type="button" data-act="save">Update saved map' + size + '</button>';
     } else if (s.status === 'online') {
       html = '<p>Save the whole Guelph map on this device so it works with no signal. Parking data is kept either way.' + safari + '</p>' +
