@@ -856,8 +856,12 @@
       if (!worker) return resolve(null);
       var channel = new MessageChannel();
       var t = setTimeout(function () { resolve(null); }, 3000); // releases before the menu don't answer
-      channel.port1.onmessage = function (e) { clearTimeout(t); resolve(e.data); };
-      worker.postMessage({ type: 'version' }, [channel.port2]);
+      channel.port1.onmessage = function (e) {
+        clearTimeout(t);
+        var d = e.data; // releases before the date answer with the bare version
+        resolve(!d ? null : typeof d === 'string' ? { build: d, date: null } : d);
+      };
+      worker.postMessage({ type: 'version', date: true }, [channel.port2]);
     });
   }
 
@@ -868,7 +872,7 @@
       askRelease(sw.controller).then(function (b) {
         // On a first visit the page came from the network, so it is this release.
         if (!hadController && !release.loaded) release.loaded = b;
-        else if (b && b !== release.loaded) release.newer = b;
+        else if (b && (!release.loaded || b.build !== release.loaded.build)) release.newer = b;
         hadController = true;
         syncMenu();
       });
@@ -895,17 +899,29 @@
       .then(function () { location.reload(); });
   }
 
-  function releaseLabel(b) {
+  function releaseLabel(r) {
+    var b = r && r.build;
     if (!b) return 'Version unknown';
     if (b === '__BUILD__') return 'Development copy';
     var m = /^(.+-dev)\.([0-9a-f]+)$/.exec(b); // a beta build, from scripts/build-site.sh
     return m ? 'Version ' + m[1] + ' (' + m[2] + ')' : 'Version ' + b;
   }
 
+  // "Released Nov 9, 2026"; a beta build is dated by its last change to the app.
+  function releaseDate(r) {
+    var m = r && /^(\d{4})-(\d\d)-(\d\d)$/.exec(r.date || '');
+    if (!m) return '';
+    // Built from parts, not parsed: "2026-11-09" alone is UTC midnight, the 8th here.
+    var day = new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+    return (/-dev\./.test(r.build) ? 'Updated ' : 'Released ') + day;
+  }
+
   function renderMenu(box) {
     var s = BikeBasemap.state();
     var bytes = (s.saved && s.saved.bytes) || (s.info && s.info.bytes);
-    var html = '<p class="bp-menu-version">' + esc(releaseLabel(release.loaded)) + '</p>';
+    var date = releaseDate(release.loaded);
+    var html = '<p class="bp-menu-version">' + esc(releaseLabel(release.loaded)) +
+      (date ? '<br><span class="bp-menu-date">' + esc(date) + '</span>' : '') + '</p>';
     if (release.newer) html += '<p class="bp-menu-new"><span>New</span> ' + esc(releaseLabel(release.newer)) + ' is ready</p>';
     html += '<div class="bp-menu-actions">' +
       (release.newer ? '<button type="button" data-act="update">Update now</button>' : '') +
