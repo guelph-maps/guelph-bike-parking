@@ -28,7 +28,8 @@ for (const [k, gz] of tiles) {
   if (Buffer.compare(Buffer.from(mvt), expect) !== 0) throw new Error(`tile ${k} does not round-trip`);
   checked++;
 }
-// Payloads are stored as they are: the decoder inflates them itself.
-const hdr = { ...header, tileCompression: 1 };
+// Payloads are stored as they are (the decoder inflates them itself), and the tile
+// type says "unknown" so nothing mistakes them for MVT.
+const hdr = { ...header, tileCompression: 1, tileType: 0 };
 writeArchive(output, hdr, metadata, out);
 console.log(`${input} -> ${output}: ${checked} tiles round-trip, ${(statSync(input).size / 1e6).toFixed(3)} -> ${(statSync(output).size / 1e6).toFixed(3)} MB, toMvt ${decodeMs.toFixed(0)} ms total`);

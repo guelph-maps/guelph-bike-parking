@@ -87,14 +87,9 @@
 
   var protocol = new pmtiles.Protocol();
   // Tiles in our own compact layout (js/gbt.js) are turned back into vector
-  // tiles here; plain vector tiles pass through untouched.
-  maplibregl.addProtocol('pmtiles', async function (params, abort) {
-    var res = await protocol.tilev4(params, abort);
-    if (res && res.data instanceof Uint8Array && window.GBT && GBT.isGbt(res.data)) {
-      res = { data: GBT.toMvt(await GBT.inflate(res.data)), cacheControl: res.cacheControl, expires: res.expires };
-    }
-    return res;
-  });
+  // tiles, and cut into smaller ones past the file's top level, so close-up
+  // views draw less. Plain vector tile files pass through untouched.
+  maplibregl.addProtocol('pmtiles', GBT.protocol(protocol, { sliceTo: 15 }));
   protocol.add(new pmtiles.PMTiles(lazySource));
 
   var started = false;
