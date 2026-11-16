@@ -30,10 +30,13 @@ const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 // only 0.07 MB while showing blank squares at the edge on a laptop. Zoomed out,
 // a view spans far more ground, so the coarse levels reach further: with these
 // margins a phone sees no blank square from any zoom centred on the city or its
-// edge. They cost 2.50 MB; one margin of 2 km for every level was 2.00 MB but
-// left a blank corner zoomed out, and the old 5 km box was 3.07 MB.
+// edge. Level 11 draws the map from zoom 12, where a phone opens; level 10 would
+// only serve zooming out past the city, which the map no longer allows
+// (minZoom in js/map.js), so it is left out. The file is 2.20 MB; one 2 km
+// margin for levels 10-14 was 2.00 MB but left a blank corner zoomed out, and the
+// old 5 km box was 3.07 MB. Level 11 at 6 km saves 0.06 MB but blanks phone edges.
 const CITY = join(ROOT, 'data', 'guelph-boundary.geojson');
-const MARGIN_KM = { 10: 20, 11: 10, 12: 6, 13: 4, 14: 2 };
+const MARGIN_KM = { 11: 8, 12: 6, 13: 4, 14: 2 };
 const UNCUT = join(BUILD, 'guelph-uncut.pmtiles');
 
 function fail(message) {
@@ -117,8 +120,8 @@ const margins = Object.fromEntries(Object.entries(MARGIN_KM).map(([z, km]) => [z
 const kept = cullPmtiles(UNCUT, OUTPUT, JSON.parse(readFileSync(CITY, 'utf8')), margins);
 rmSync(UNCUT, { force: true });
 for (const [z, s] of Object.entries(kept)) {
-  console.log(`build-tiles: level ${z}: city + ${MARGIN_KM[z]} km, ${s.tiles} tiles, ${(s.bytes / 1024 / 1024).toFixed(2)} MB`);
+  console.log(`build-tiles: level ${z}: city + ${MARGIN_KM[z]} km, ${s.tiles} tiles, ${(s.bytes / 1e6).toFixed(2)} MB`);
 }
 
-const mb = (statSync(OUTPUT).size / 1024 / 1024).toFixed(2);
+const mb = (statSync(OUTPUT).size / 1e6).toFixed(2);
 console.log(`build-tiles: wrote ${OUTPUT} (${mb} MB) in ${seconds}s`);
