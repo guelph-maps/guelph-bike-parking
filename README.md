@@ -117,6 +117,8 @@ java -jar path/to/planetiler.jar verify scripts/tiles/schema.yml   # schema test
 
 Without an argument, `build-tiles.mjs` reads the Ontario extract named in
 `$OSM_DATA_DIR/ontario/latest.json` (default `~/Code/.osm-data`). It takes about a minute.
+The tiles cover the city boundary in `data/guelph-boundary.geojson` grown by 2 km;
+only the most zoomed-out level reaches the neighbouring towns.
 
 ## Running locally
 

@@ -13,7 +13,7 @@
 // Data © OpenStreetMap contributors, available under the ODbL.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, statSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,12 +23,62 @@ const BUILD = join(ROOT, 'build');
 const OUTPUT = join(BUILD, 'guelph.pmtiles');
 const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 
-// west, south, east, north: Guelph city limits plus a margin.
-const BOUNDS = [-80.40, 43.44, -80.08, 43.64];
+// Tiles cover the city boundary (saved by fetch-data.mjs) grown by this much.
+// Every zoom level is a full new set of tiles, so the close-up levels are most of
+// the file: a 5 km margin box cost 3.07 MB, the city plus 2 km costs 2.00 MB and
+// looks the same around the edge. 1 km leaves blank squares near Guelph Lake.
+// The coarsest level (10) still reaches the neighbouring towns: its tiles are
+// about 28 km across, so the few that touch the city carry them.
+const CITY = join(ROOT, 'data', 'guelph-boundary.geojson');
+const MARGIN_METRES = 2000;
+const AREA = join(BUILD, 'guelph-area.poly');
 
 function fail(message) {
   console.error(`build-tiles: ${message}`);
   process.exit(1);
+}
+
+// Writes the city boundary grown by `metres` as an Osmosis .poly for Planetiler's
+// --polygon, which keeps every tile touching any of the file's sections. So the
+// boundary, a rectangle along each edge and a circle at each corner together
+// make the grown shape, without a geometry library.
+function writeAreaPoly(geojsonPath, metres, out) {
+  const gj = JSON.parse(readFileSync(geojsonPath, 'utf8'));
+  const geoms = (gj.type === 'FeatureCollection' ? gj.features.map((f) => f.geometry)
+    : [gj.type === 'Feature' ? gj.geometry : gj]).filter(Boolean);
+  const rings = geoms.flatMap((g) => g.type === 'Polygon' ? [g.coordinates[0]]
+    : g.type === 'MultiPolygon' ? g.coordinates.map((p) => p[0]) : []);
+  if (!rings.length) fail(`${geojsonPath} has no polygon`);
+
+  // Local flat metres around the boundary's middle latitude; fine at city scale.
+  const pts = rings.flat();
+  const lat0 = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  const mx = 111320 * Math.cos(lat0 * Math.PI / 180), my = 110540;
+  const toM = ([x, y]) => [x * mx, y * my];
+  const toDeg = ([x, y]) => [x / mx, y / my];
+
+  const sections = [...rings];
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length - 1; i++) {
+      const a = toM(ring[i]), b = toM(ring[i + 1]);
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+      const nx = -(b[1] - a[1]) / len * metres, ny = (b[0] - a[0]) / len * metres;
+      sections.push([[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny], [b[0] - nx, b[1] - ny],
+        [a[0] - nx, a[1] - ny], [a[0] + nx, a[1] + ny]].map(toDeg));
+      const circle = [];
+      for (let k = 0; k <= 16; k++) {
+        const t = k / 16 * 2 * Math.PI;
+        circle.push(toDeg([a[0] + metres * Math.cos(t), a[1] + metres * Math.sin(t)]));
+      }
+      sections.push(circle);
+    }
+  }
+  const lines = ['guelph-area'];
+  sections.forEach((s, i) => {
+    lines.push(String(i + 1), ...s.map(([x, y]) => `   ${x.toFixed(7)}   ${y.toFixed(7)}`), 'END');
+  });
+  lines.push('END', '');
+  writeFileSync(out, lines.join('\n'));
 }
 
 function resolveInput(arg) {
@@ -62,6 +112,8 @@ const javaOpts = (process.env.PLANETILER_JAVA_OPTS || '-Xmx3g').split(/\s+/).fil
 
 const tmpDir = join(BUILD, 'tmp');
 mkdirSync(BUILD, { recursive: true });
+if (!existsSync(CITY)) fail(`city boundary not found: ${CITY}`);
+writeAreaPoly(CITY, MARGIN_METRES, AREA);
 
 const args = [
   ...javaOpts,
@@ -70,7 +122,7 @@ const args = [
   `--schema=${SCHEMA}`,
   `--osm_path=${input}`,
   `--output=${OUTPUT}`,
-  `--bounds=${BOUNDS.join(',')}`,
+  `--polygon=${AREA}`,
   // Keep temp files and any downloads out of the repo's data/ folder.
   `--tmpdir=${tmpDir}`,
   `--download_dir=${join(BUILD, 'sources')}`,
