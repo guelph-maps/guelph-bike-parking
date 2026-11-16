@@ -102,8 +102,14 @@
   // ---- Markers ---------------------------------------------------------------
   // A roof in the pin's colour, resting on the circle so the pin reads as a
   // little house. The viewBox is in the pin's own pixels, peak over its centre.
-  var ROOF = '<svg class="bp-roof" viewBox="-2 -9 38 19" width="38" height="19" aria-hidden="true">' +
-    '<path d="M1.5 8L17-5l15.5 13"/><path d="M1.5 8L17-5l15.5 13"/></svg>';
+  // A group where only some spots are covered gets the roof dashed; the
+  // dashes are laid out (pathLength 40) so both eaves and the peak are solid.
+  function roof(covered) {
+    if (!covered) return '';
+    return '<svg class="bp-roof' + (covered === 'some' ? ' bp-roof-some' : '') +
+      '" viewBox="-2 -9 38 19" width="38" height="19" aria-hidden="true">' +
+      '<path d="M1.5 8L17-5l15.5 13"/><path d="M1.5 8L17-5l15.5 13" pathLength="40"/></svg>';
+  }
 
   function markerIcon(type, capacity, covered, stack, title) {
     var badge = capacity == null
@@ -112,7 +118,7 @@
     return L.divIcon({
       className: 'bp-marker-wrap',
       html: '<div class="bp-marker' + (stack ? ' bp-stack' : '') + '" style="--c:' + type.color + '"' +
-        (title ? ' title="' + title + '"' : '') + '>' + (covered ? ROOF : '') + T.svg(type, 20) + badge + '</div>',
+        (title ? ' title="' + title + '"' : '') + '>' + roof(covered) + T.svg(type, 20) + badge + '</div>',
       iconSize: [34, 34],
       iconAnchor: [17, 17],
       // Open the popup above the roof rather than over it.
@@ -124,16 +130,18 @@
 
   function clusterIcon(cluster) {
     var children = cluster.getAllChildMarkers();
-    var spaces = 0, counted = 0, covered = false, groups = {}, order = [];
+    var spaces = 0, counted = 0, coveredSites = 0, groups = {}, order = [];
     children.forEach(function (m) {
       var k = m.bpType.key;
       if (!groups[k]) { groups[k] = { type: m.bpType, sites: 0, spaces: 0 }; order.push(k); }
       groups[k].sites++;
       // Spots without a recorded count are left out of the totals.
       if (m.options.capacity != null) { spaces += m.options.capacity; groups[k].spaces += m.options.capacity; counted++; }
-      // One covered spot is enough for the roof: there is shelter here.
-      if (isCovered(m.bpProps)) covered = true;
+      if (isCovered(m.bpProps)) coveredSites++;
     });
+    // One covered spot is enough for a roof: there is shelter here. Dashed
+    // when the rest of the group is in the open.
+    var covered = coveredSites === children.length ? true : coveredSites ? 'some' : false;
     // Biggest share first, "type not recorded" last.
     order.sort(function (a, b) {
       return (a === 'unknown') - (b === 'unknown') || groups[b].sites - groups[a].sites;
@@ -168,7 +176,7 @@
       return L.divIcon({
         className: 'bp-marker-wrap',
         html: '<div class="bp-marker bp-stack bp-mixed" title="' + title + '" style="--c:' + groups[order[0]].type.color +
-          ';background:' + gradient + '">' + (covered ? ROOF : '') + T.svg(shelter ? shelter.type : T.resolve('other'), 20) +
+          ';background:' + gradient + '">' + roof(covered) + T.svg(shelter ? shelter.type : T.resolve('other'), 20) +
           (counted ? '<span class="bp-badge">' + fmt.format(spaces) + '</span>'
             : '<span class="bp-badge bp-badge-unknown" title="Capacity not recorded">?</span>') + '</div>',
         iconSize: [34, 34],
@@ -183,7 +191,7 @@
     return L.divIcon({
       className: 'bp-cluster-wrap',
       html: '<div class="bp-cluster" title="' + title + '" style="width:' + size + 'px;height:' + size + 'px;' +
-        'background:' + gradient + '">' + (covered ? ROOF : '') +
+        'background:' + gradient + '">' + roof(covered) +
         '<div class="bp-cluster-core"><b>' + label + '</b><span>' + unit + '</span></div></div>',
       iconSize: [size, size]
     });
@@ -307,8 +315,10 @@
         '<div class="bp-legend-body" id="bp-legend-body">' +
           '<div class="bp-legend-help">' +
             '<p><span><span class="bp-key-badge">8</span></span><span>how many bikes fit (<b>?</b> = not recorded yet)</span></p>' +
-            '<p><span class="bp-key-roof"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + ROOF +
+            '<p><span class="bp-key-roof"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + roof(true) +
               T.svg(T.list[0], 14) + '</span></span><span>covered or indoor</span></p>' +
+            '<p><span class="bp-key-roof"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + roof('some') +
+              T.svg(T.list[0], 14) + '</span></span><span>some spots in the group covered</span></p>' +
             '<p><span class="bp-key-stack"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + T.svg(T.list[0], 14) + '</span></span>' +
               '<span>several spots of one type, spaces added up</span></p>' +
             '<p><span><span class="bp-key-cluster"><b>42</b></span></span><span>mixed types nearby, colours show the mix; zoom in for each spot</span></p>' +
