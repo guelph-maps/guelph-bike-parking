@@ -13,72 +13,44 @@
 // Data © OpenStreetMap contributors, available under the ODbL.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, statSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cullPmtiles, outerRings } from './tiles/cull-pmtiles.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'build');
 const OUTPUT = join(BUILD, 'guelph.pmtiles');
 const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 
-// Tiles cover the city boundary (saved by fetch-data.mjs) grown by this much.
-// Every zoom level is a full new set of tiles, so the close-up levels are most of
-// the file: a 5 km margin box cost 3.07 MB, the city plus 2 km costs 2.00 MB and
-// looks the same around the edge. 1 km leaves blank squares near Guelph Lake.
-// The coarsest level (10) still reaches the neighbouring towns: its tiles are
-// about 28 km across, so the few that touch the city carry them.
+// Each zoom level covers the city boundary (saved by fetch-data.mjs) grown by
+// its own margin. Every level is a full new set of tiles, so the close-up levels
+// are most of the file: city + 2 km at level 14 is 1.16 MB, and 1 km would save
+// only 0.07 MB while showing blank squares at the edge on a laptop. Zoomed out,
+// a view spans far more ground, so the coarse levels reach further: with these
+// margins a phone sees no blank square from any zoom centred on the city or its
+// edge. They cost 2.50 MB; one margin of 2 km for every level was 2.00 MB but
+// left a blank corner zoomed out, and the old 5 km box was 3.07 MB.
 const CITY = join(ROOT, 'data', 'guelph-boundary.geojson');
-const MARGIN_METRES = 2000;
-const AREA = join(BUILD, 'guelph-area.poly');
+const MARGIN_KM = { 10: 20, 11: 10, 12: 6, 13: 4, 14: 2 };
+const UNCUT = join(BUILD, 'guelph-uncut.pmtiles');
 
 function fail(message) {
   console.error(`build-tiles: ${message}`);
   process.exit(1);
 }
 
-// Writes the city boundary grown by `metres` as an Osmosis .poly for Planetiler's
-// --polygon, which keeps every tile touching any of the file's sections. So the
-// boundary, a rectangle along each edge and a circle at each corner together
-// make the grown shape, without a geometry library.
-function writeAreaPoly(geojsonPath, metres, out) {
-  const gj = JSON.parse(readFileSync(geojsonPath, 'utf8'));
-  const geoms = (gj.type === 'FeatureCollection' ? gj.features.map((f) => f.geometry)
-    : [gj.type === 'Feature' ? gj.geometry : gj]).filter(Boolean);
-  const rings = geoms.flatMap((g) => g.type === 'Polygon' ? [g.coordinates[0]]
-    : g.type === 'MultiPolygon' ? g.coordinates.map((p) => p[0]) : []);
-  if (!rings.length) fail(`${geojsonPath} has no polygon`);
-
-  // Local flat metres around the boundary's middle latitude; fine at city scale.
-  const pts = rings.flat();
-  const lat0 = pts.reduce((s, p) => s + p[1], 0) / pts.length;
-  const mx = 111320 * Math.cos(lat0 * Math.PI / 180), my = 110540;
-  const toM = ([x, y]) => [x * mx, y * my];
-  const toDeg = ([x, y]) => [x / mx, y / my];
-
-  const sections = [...rings];
-  for (const ring of rings) {
-    for (let i = 0; i < ring.length - 1; i++) {
-      const a = toM(ring[i]), b = toM(ring[i + 1]);
-      const len = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-      const nx = -(b[1] - a[1]) / len * metres, ny = (b[0] - a[0]) / len * metres;
-      sections.push([[a[0] + nx, a[1] + ny], [b[0] + nx, b[1] + ny], [b[0] - nx, b[1] - ny],
-        [a[0] - nx, a[1] - ny], [a[0] + nx, a[1] + ny]].map(toDeg));
-      const circle = [];
-      for (let k = 0; k <= 16; k++) {
-        const t = k / 16 * 2 * Math.PI;
-        circle.push(toDeg([a[0] + metres * Math.cos(t), a[1] + metres * Math.sin(t)]));
-      }
-      sections.push(circle);
-    }
-  }
-  const lines = ['guelph-area'];
-  sections.forEach((s, i) => {
-    lines.push(String(i + 1), ...s.map(([x, y]) => `   ${x.toFixed(7)}   ${y.toFixed(7)}`), 'END');
-  });
-  lines.push('END', '');
-  writeFileSync(out, lines.join('\n'));
+// The box around the city grown by the largest margin, for Planetiler's --bounds:
+// it builds every level over this box and cullPmtiles trims each level after.
+function buildBounds(geojsonPath, km) {
+  const pts = outerRings(JSON.parse(readFileSync(geojsonPath, 'utf8'))).flat();
+  if (!pts.length) fail(`${geojsonPath} has no polygon`);
+  const lat0 = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
+  const dx = km * 1000 / (111320 * Math.cos(lat0 * Math.PI / 180)), dy = km * 1000 / 110540;
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  return [Math.min(...xs) - dx, Math.min(...ys) - dy, Math.max(...xs) + dx, Math.max(...ys) + dy]
+    .map((v) => v.toFixed(4));
 }
 
 function resolveInput(arg) {
@@ -113,7 +85,7 @@ const javaOpts = (process.env.PLANETILER_JAVA_OPTS || '-Xmx3g').split(/\s+/).fil
 const tmpDir = join(BUILD, 'tmp');
 mkdirSync(BUILD, { recursive: true });
 if (!existsSync(CITY)) fail(`city boundary not found: ${CITY}`);
-writeAreaPoly(CITY, MARGIN_METRES, AREA);
+const bounds = buildBounds(CITY, Math.max(...Object.values(MARGIN_KM)));
 
 const args = [
   ...javaOpts,
@@ -121,8 +93,8 @@ const args = [
   'generate-custom',
   `--schema=${SCHEMA}`,
   `--osm_path=${input}`,
-  `--output=${OUTPUT}`,
-  `--polygon=${AREA}`,
+  `--output=${UNCUT}`,
+  `--bounds=${bounds.join(',')}`,
   // Keep temp files and any downloads out of the repo's data/ folder.
   `--tmpdir=${tmpDir}`,
   `--download_dir=${join(BUILD, 'sources')}`,
@@ -139,7 +111,14 @@ rmSync(tmpDir, { recursive: true, force: true });
 
 if (run.error) fail(`could not start ${java}: ${run.error.message}`);
 if (run.status !== 0) fail(`planetiler exited with ${run.status ?? run.signal} after ${seconds}s`);
-if (!existsSync(OUTPUT)) fail(`planetiler finished but ${OUTPUT} is missing`);
+if (!existsSync(UNCUT)) fail(`planetiler finished but ${UNCUT} is missing`);
+
+const margins = Object.fromEntries(Object.entries(MARGIN_KM).map(([z, km]) => [z, km * 1000]));
+const kept = cullPmtiles(UNCUT, OUTPUT, JSON.parse(readFileSync(CITY, 'utf8')), margins);
+rmSync(UNCUT, { force: true });
+for (const [z, s] of Object.entries(kept)) {
+  console.log(`build-tiles: level ${z}: city + ${MARGIN_KM[z]} km, ${s.tiles} tiles, ${(s.bytes / 1024 / 1024).toFixed(2)} MB`);
+}
 
 const mb = (statSync(OUTPUT).size / 1024 / 1024).toFixed(2);
 console.log(`build-tiles: wrote ${OUTPUT} (${mb} MB) in ${seconds}s`);
