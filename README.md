@@ -98,13 +98,19 @@ works with no signal anywhere in the city. It's styled for cycling (`js/style.js
 The tiles are built with [Planetiler](https://github.com/onthegomap/planetiler) and the
 custom schema in `scripts/tiles/schema.yml`, which keeps only what the style draws
 (each layer's classes and attributes are described in its comments; test cases in
-`schema.spec.yml`). They're built on request (Actions → Build base map tiles) from
-Geofabrik's Ontario extract, because each new file is a download on every phone. The
-result is a draft data release holding `guelph.pmtiles`: beta uses it straight away, and
-publishing the draft pushes it to production. A data release without a tile file keeps the one
-before it. `scripts/publish-tiles.mjs` copies the file
-into the site under a content-hashed name and writes `tiles/tiles.json`; phones that have
-an older copy download the new one in the background and switch on the next visit.
+`schema.spec.yml`). They're built from Geofabrik's Ontario extract every Monday evening,
+or by hand (Actions → Build base map tiles). A week whose tiles match the last file's
+(`scripts/tiles-changed.mjs`) publishes nothing. Otherwise the result is a draft data
+release holding `guelph.pmtiles`, replacing any older such draft: beta uses it straight
+away, and publishing the draft pushes it to production. A data release without a tile
+file keeps the one before it. `scripts/publish-tiles.mjs` copies the file into the site
+under a content-hashed name and writes `tiles/tiles.json`.
+
+Streaming maps (embeds, and phones that haven't saved the map) always show the newest
+file. A phone that has saved an older copy doesn't fetch every new one, since each is
+3 MB: it updates in the background once its copy's OpenStreetMap data is 30 days behind,
+or sooner when Chrome on Android reports Wi-Fi (iPhones don't say), and switches on the
+next visit. About shows the saved copy's date and an "Update saved map" button.
 
 To build locally (Java 21+ and the
 [Planetiler jar](https://github.com/onthegomap/planetiler/releases)):
