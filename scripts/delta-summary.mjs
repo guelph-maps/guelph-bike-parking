@@ -183,30 +183,28 @@ function title() {
   return `${count(added.length, 'new rack')}, ${fmt(Math.abs(spaceChange))} ${more} ${Math.abs(spaceChange) === 1 ? 'space' : 'spaces'}`;
 }
 
-// Racks with the same comment sit together, groups in the order they were made
-// (oldest changeset first), racks without one last; otherwise by OSM id.
-function byComment(features) {
-  const changesetOf = (f) => edits.get(f.properties.osm)?.changeset ?? Infinity;
-  const first = new Map();
-  for (const f of features) {
-    const text = commentOf(f);
-    if (text) first.set(text, Math.min(first.get(text) ?? Infinity, changesetOf(f)));
-  }
-  const group = (f) => (commentOf(f) ? first.get(commentOf(f)) : Infinity);
-  return [...features].sort((a, b) => group(a) - group(b) || commentOf(a).localeCompare(commentOf(b)));
+// Each mapper's racks sit together, and within them racks with the same comment,
+// so the dittos run unbroken. Rows without a name or comment (OpenStreetMap
+// didn't answer) go last; otherwise OSM id order stands.
+function byMapperAndComment(features) {
+  const order = (x, y) => (!x - !y) || x.localeCompare(y, 'en', { sensitivity: 'base' });
+  return [...features].sort((a, b) =>
+    order(editorOf(a) || '', editorOf(b) || '') || order(commentOf(a), commentOf(b)));
 }
 
 // The ditto, between dashes as Russian typesetting writes it, stands for the
-// comment in the row above.
+// comment in the row above. It never crosses from one mapper to the next: the
+// same words from someone else are a different batch.
 const DITTO = '⸻″⸻';
 
 function rackTable(features, heading, who) {
-  let previous = '';
-  const rows = byComment(features).map((f) => {
+  let previous = null;
+  const rows = byMapperAndComment(features).map((f) => {
     const p = f.properties;
     const text = commentOf(f);
-    const comment = text && text === previous ? DITTO : text;
-    previous = text;
+    const key = `${editorOf(f) || ''}\n${text}`;
+    const comment = text && key === previous ? DITTO : text;
+    previous = key;
     return `| ${link(rackName(p), p.osm)} | ${p.capacity ?? '?'} | ${editorOf(f) ? mapper(editorOf(f)) : ''} | ${comment} |`;
   });
   return [`**${heading}**`, '', `| Rack | Spaces | ${who} | Changeset comment |`, '|---|---:|---|---|', ...rows, ''];
