@@ -36,7 +36,7 @@ jobs:
       - name: Get the last tile file, to compare with
         run: |
           scripts/get-tiles.sh
-          if [ -f build/guelph.pmtiles ]; then mv build/guelph.pmtiles build/previous.pmtiles; fi
+          if [ -f build/guelph.pmtiles ]; then mv build/guelph.pmtiles build/last-release.pmtiles; fi
       - name: Build the tiles from Geofabrik's Ontario extract
         env:
           PLANETILER_JAR: build/planetiler.jar
@@ -51,7 +51,7 @@ jobs:
       - name: Check whether the tiles changed
         id: diff
         run: |
-          result=$(node scripts/tiles-changed.mjs build/previous.pmtiles build/guelph.pmtiles)
+          result=$(node scripts/tiles-changed.mjs build/last-release.pmtiles build/guelph.pmtiles)
           echo "Tiles since the last file: $result"
           publish=yes
           if [ "$result" = same ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then

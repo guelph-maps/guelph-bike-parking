@@ -6,6 +6,7 @@ sourcePaths:
   - "scripts/build-site.sh"
   - "scripts/delta-summary.mjs"
   - "scripts/get-tiles.sh"
+  - "scripts/get-live-tiles.sh"
   - "scripts/tiles-changed.mjs"
   - "scripts/mark-beta.mjs"
   - "DATA_FORMAT"
@@ -32,6 +33,7 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - [tiles.yml](../../../.github/workflows/tiles.yml): Weekly (Mondays) and manual workflow builds a draft `data-*` release with the new PMTiles asset, replaces older drafts it made, and updates beta; a scheduled week whose tiles match the last file (`scripts/tiles-changed.mjs`) publishes nothing.
 - [build-site.sh](../../../scripts/build-site.sh): Validates app/data refs and `DATA_FORMAT` / `data/FORMAT`, then assembles `_site` from the selected app and data tags.
 - [get-tiles.sh](../../../scripts/get-tiles.sh): Downloads the relevant `guelph.pmtiles` release asset for beta or production.
+- [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now, so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
 - [mark-beta.mjs](../../../scripts/mark-beta.mjs): Marks a built site as beta before pushing it to the beta Pages repository.
 - [DATA_FORMAT](../../../DATA_FORMAT): App compatibility contract used by the deployment preflight.
 - [data/FORMAT](../../../data/FORMAT): Data compatibility marker used alongside the app format.
