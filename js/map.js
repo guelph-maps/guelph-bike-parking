@@ -766,9 +766,6 @@
         '<p>Where to lock your bike in Guelph. Each icon shows the kind of rack, and the number shows how many bikes it holds.</p>' +
         '<p><b>' + fmt.format(markers.length) + '</b> locations and <b>' + fmt.format(spaces) + '</b> counted spaces inside city limits. ' +
           'Data last updated ' + esc(updated) + '.</p>' +
-        '<h3>Where the data comes from</h3>' +
-        '<p>Everything on this map comes from ' + link('https://www.openstreetmap.org/about', 'OpenStreetMap') +
-          ', the free map anyone can edit. The map checks for changes every week.</p>' +
         '<h3>Something missing or wrong?</h3>' +
         '<p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, or ' +
           link('https://www.openstreetmap.org/edit#map=17/' + map.getCenter().lat.toFixed(5) + '/' + map.getCenter().lng.toFixed(5), 'add new parking') +
