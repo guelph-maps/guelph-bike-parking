@@ -246,8 +246,10 @@
     else if (p.covered === 'no') chips.push(['Not covered', '']);
     if (p.fee === 'yes') chips.push(['Fee', 'warn']);
     else if (p.fee === 'no') chips.push(['Free', 'good']);
-    if (p.access === 'customers' || p.access === 'permit' || p.access === 'permissive') {
-      chips.push([{ customers: 'Customers only', permit: 'Permit needed', permissive: 'Permissive' }[p.access], 'warn']);
+    if (p.access === 'customers' || p.access === 'permit') {
+      chips.push([{ customers: 'Customers only', permit: 'Permit needed' }[p.access], 'warn']);
+    } else if (p.access === 'permissive') {
+      chips.push(['Open to the public', '']); // private land, the owner lets anyone use it
     }
     if (p.lit === 'yes') chips.push(['Lit at night', '']);
     if (p.surveillance && p.surveillance !== 'no') chips.push(['Surveillance', '']);
@@ -767,10 +769,10 @@
         '<p><b>' + fmt.format(markers.length) + '</b> locations and <b>' + fmt.format(spaces) + '</b> counted spaces inside city limits. ' +
           'Data last updated ' + esc(updated) + '.</p>' +
         '<h3>Something missing or wrong?</h3>' +
-        '<p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, or ' +
+        '<p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, the free map anyone can edit. ' +
+          'Counting the spaces helps most. You can also ' +
           link('https://www.openstreetmap.org/edit#map=17/' + map.getCenter().lat.toFixed(5) + '/' + map.getCenter().lng.toFixed(5), 'add new parking') +
-          '. Not a mapper? ' + link(REPO_URL + '/issues/new?title=' + encodeURIComponent('Bike parking correction'), 'Report it here') +
-          '. Adding the number of spaces helps most.</p>' +
+          '. Not a mapper? ' + link(REPO_URL + '/issues/new?title=' + encodeURIComponent('Bike parking correction'), 'Report it here') + '.</p>' +
         '<h3>Using it without signal</h3>' +
         '<div class="bp-offline-box"></div>' +
         '<p class="bp-about-foot">Map data &copy; OpenStreetMap contributors (ODbL). ' +
