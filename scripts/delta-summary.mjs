@@ -167,12 +167,11 @@ function quote(text) {
 const edits = await lastEdits([...added, ...removed, ...changed]);
 const comments = await changesetComments([...edits.values()].map((e) => e.changeset));
 const editorOf = (f) => edits.get(f.properties.osm)?.user;
-// "“comment”", linked to the changeset; blank when OpenStreetMap didn't answer.
+// The comment as plain text; blank when there's none or OpenStreetMap didn't answer.
 function commentOf(f) {
   const id = edits.get(f.properties.osm)?.changeset;
-  if (!id || !comments.has(id)) return '';
-  const text = comments.get(id);
-  return `[${text ? `“${quote(text)}”` : 'no comment'}](${OSM}/changeset/${id})`;
+  const text = id && comments.get(id);
+  return text ? quote(text) : '';
 }
 
 const spaceChange = spaces(newRacks) - spaces(oldRacks);
@@ -190,8 +189,7 @@ function rackTable(features, heading, who) {
     const p = f.properties;
     // Several racks from one changeset quote its comment once.
     const changeset = edits.get(p.osm)?.changeset;
-    const comment = changeset && changeset === previous && commentOf(f)
-      ? `[same as above](${OSM}/changeset/${changeset})` : commentOf(f);
+    const comment = changeset && changeset === previous && commentOf(f) ? 'same as above' : commentOf(f);
     previous = changeset;
     return `| ${link(rackName(p), p.osm)} | ${p.capacity ?? '?'} | ${editorOf(f) ? mapper(editorOf(f)) : ''} | ${comment} |`;
   });
@@ -232,7 +230,7 @@ function smallChangeLine(item) {
   if (typeof item === 'string') return item;
   const comment = commentOf(item);
   return `${link(rackName(item.properties), item.properties.osm)}: ${describeChange(oldById.get(item.properties.osm), item)}.` +
-    (comment ? ` ${comment}` : '');
+    (comment ? ` — ${comment}` : '');
 }
 
 const big = removed.length >= 10 || removed.length >= oldRacks.features.length * 0.05;
