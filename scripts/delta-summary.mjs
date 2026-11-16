@@ -183,14 +183,28 @@ function title() {
   return `${count(added.length, 'new rack')}, ${fmt(Math.abs(spaceChange))} ${more} ${Math.abs(spaceChange) === 1 ? 'space' : 'spaces'}`;
 }
 
+// Each mapper's racks sit together, and within them racks with the same comment,
+// so the dittos run unbroken. Rows without a name or comment (OpenStreetMap
+// didn't answer) go last; otherwise OSM id order stands.
+function byMapperAndComment(features) {
+  const order = (x, y) => (!x - !y) || x.localeCompare(y, 'en', { sensitivity: 'base' });
+  return [...features].sort((a, b) =>
+    order(editorOf(a) || '', editorOf(b) || '') || order(commentOf(a), commentOf(b)));
+}
+
+// The ditto, between dashes as Russian typesetting writes it, stands for the
+// comment in the row above. It never crosses from one mapper to the next: the
+// same words from someone else are a different batch.
+const DITTO = '⸻″⸻';
+
 function rackTable(features, heading, who) {
   let previous = null;
-  const rows = features.map((f) => {
+  const rows = byMapperAndComment(features).map((f) => {
     const p = f.properties;
-    // Several racks from one changeset quote its comment once.
-    const changeset = edits.get(p.osm)?.changeset;
-    const comment = changeset && changeset === previous && commentOf(f) ? 'same as above' : commentOf(f);
-    previous = changeset;
+    const text = commentOf(f);
+    const key = `${editorOf(f) || ''}\n${text}`;
+    const comment = text && key === previous ? DITTO : text;
+    previous = key;
     return `| ${link(rackName(p), p.osm)} | ${p.capacity ?? '?'} | ${editorOf(f) ? mapper(editorOf(f)) : ''} | ${comment} |`;
   });
   return [`**${heading}**`, '', `| Rack | Spaces | ${who} | Changeset comment |`, '|---|---:|---|---|', ...rows, ''];
