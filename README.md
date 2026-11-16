@@ -4,7 +4,8 @@ A full-screen, mobile-friendly map of bicycle parking in Guelph, Ontario. Each l
 shows an icon for the type of rack (stands, wheel bender, shelter, lockers, …), a badge
 with the number of bike spaces, and a little roof when it's covered. Nearby locations
 are grouped and their spaces added up: spots of one type show as a stacked pin of that
-type, mixed ones in the colours of the types they contain. Private parking
+type, mixed ones in the colours of the types they contain, and a group gets the roof if
+any spot in it is covered. Private parking
 (`access=private`) is left off. The map can be embedded in other websites, such as
 GCAT's, with an `<iframe>`. It works with no signal: the whole city's bike map is
 saved on the device (about 3 MB).

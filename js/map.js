@@ -124,14 +124,15 @@
 
   function clusterIcon(cluster) {
     var children = cluster.getAllChildMarkers();
-    var spaces = 0, counted = 0, covered = true, groups = {}, order = [];
+    var spaces = 0, counted = 0, covered = false, groups = {}, order = [];
     children.forEach(function (m) {
       var k = m.bpType.key;
       if (!groups[k]) { groups[k] = { type: m.bpType, sites: 0, spaces: 0 }; order.push(k); }
       groups[k].sites++;
       // Spots without a recorded count are left out of the totals.
       if (m.options.capacity != null) { spaces += m.options.capacity; groups[k].spaces += m.options.capacity; counted++; }
-      if (!isCovered(m.bpProps)) covered = false;
+      // One covered spot is enough for the roof: there is shelter here.
+      if (isCovered(m.bpProps)) covered = true;
     });
     // Biggest share first, "type not recorded" last.
     order.sort(function (a, b) {
