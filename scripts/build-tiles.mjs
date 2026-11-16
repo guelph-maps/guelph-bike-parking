@@ -19,6 +19,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cullPmtiles, outerRings } from './tiles/cull-pmtiles.mjs';
 import { toGbtArchive } from './tiles/own/to-gbt.mjs';
+import { trimPmtiles, RECOMMENDED } from './tiles/own/trim.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'build');
@@ -130,9 +131,15 @@ const margins = Object.fromEntries(Object.entries(MARGIN_KM).map(([z, km]) => [z
 const CUT = join(BUILD, 'guelph-mvt.pmtiles');
 const kept = cullPmtiles(UNCUT, CUT, JSON.parse(readFileSync(CITY, 'utf8')), margins);
 rmSync(UNCUT, { force: true });
-// Our own tile layout: same features, columns instead of MVT, no feature ids.
-const gbt = toGbtArchive(CUT, OUTPUT);
+// Drop what js/style.js never draws, merge features it can't tell apart, trim each
+// feature's margin beyond the tile edge to what its drawn width needs, and put the
+// zoomed-out levels on a coarser grid (scripts/tiles/own/trim.mjs). Re-run on style changes.
+const TRIMMED = join(BUILD, 'guelph-trim.pmtiles');
+trimPmtiles(CUT, TRIMMED, RECOMMENDED);
 rmSync(CUT, { force: true });
+// Our own tile layout: same features, columns instead of MVT, no feature ids.
+const gbt = toGbtArchive(TRIMMED, OUTPUT);
+rmSync(TRIMMED, { force: true });
 for (const [z, s] of Object.entries(gbt.levels)) kept[z].bytes = s;
 for (const [z, s] of Object.entries(kept)) {
   console.log(`build-tiles: level ${z}: city + ${MARGIN_KM[z]} km, ${s.tiles} tiles, ${(s.bytes / 1e6).toFixed(2)} MB`);
