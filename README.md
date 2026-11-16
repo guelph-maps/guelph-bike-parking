@@ -104,7 +104,9 @@ or by hand (Actions → Build base map tiles). A week whose tiles match the last
 release holding `guelph.pmtiles`, replacing any older such draft: beta uses it straight
 away, and publishing the draft pushes it to production. A data release without a tile
 file keeps the one before it. `scripts/publish-tiles.mjs` copies the file into the site
-under a content-hashed name and writes `tiles/tiles.json`.
+under a content-hashed name and writes `tiles/tiles.json`. Each deploy also keeps the
+file the site was serving until then (`scripts/get-live-tiles.sh`), so a page that's
+streaming it when a new map goes live keeps its tiles; the one before that is dropped.
 
 Streaming maps (embeds, and phones that haven't saved the map) always show the newest
 file. A phone that has saved an older copy doesn't fetch every new one, since each is
