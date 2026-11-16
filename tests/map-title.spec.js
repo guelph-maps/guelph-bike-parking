@@ -59,3 +59,37 @@ test('adds the beta badge on the beta host', async ({ page }) => {
 
   await expect(page.locator('#bp-title .bp-beta')).toHaveText('Beta');
 });
+
+for (const hasHeading of [true, false]) {
+  for (const embed of [false, true]) {
+    test(`loads old HTML ${hasHeading ? 'with' : 'without'} a heading in ${embed ? 'embed' : 'standalone'} mode`, async ({ page }) => {
+      const errors = [];
+      page.on('pageerror', error => errors.push(error.message));
+      await page.route('**/?*', async route => {
+        if (!route.request().isNavigationRequest()) return route.continue();
+        const response = await route.fetch();
+        const html = (await response.text()).replace(
+          /  <div class="leaflet-top leaflet-left bp-title-position">[\s\S]*?(?=  <div id="map")/,
+          hasHeading ? '  <h1>Guelph Bike Parking</h1>\n' : ''
+        );
+        expect(html).not.toContain('id="bp-title"');
+        await route.fulfill({ response, body: html });
+      });
+      await page.goto(`/?legend=closed${embed ? '&embed=1' : ''}`);
+
+      await expect(page.locator('.bp-marker, .bp-cluster').first()).toBeVisible();
+      await expect(page.getByRole('combobox', { name: 'Search address or place' })).toBeVisible();
+      expect(await page.locator('.bp-search').evaluate(el => el.closest('#map'))).toBeNull();
+      await expect(page.locator('h1')).toHaveCount(embed ? 0 : 1);
+      if (embed) {
+        await expect(page.locator('#bp-title a')).toHaveText(/Guelph bike parking/);
+      } else {
+        await expect(page.locator('#bp-title h1')).toHaveText('Guelph Bike Parking');
+        expect(await page.locator('h1').evaluate(el => el.closest('#map'))).toBeNull();
+        await page.getByRole('button', { name: 'About this map', exact: true }).click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+      }
+      expect(errors).toEqual([]);
+    });
+  }
+}

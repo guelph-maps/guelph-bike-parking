@@ -397,7 +397,20 @@
 
   // ---- Small controls ----------------------------------------------------------
   function addTitleControl() {
+    // Older cached HTML has no title box, and may have a bare heading instead.
+    var position = document.querySelector('.bp-title-position');
+    if (!position) {
+      var mapEl = map.getContainer();
+      position = L.DomUtil.create('div', 'leaflet-top leaflet-left bp-title-position');
+      mapEl.parentNode.insertBefore(position, mapEl);
+    }
     var el = document.getElementById('bp-title');
+    if (!el) {
+      el = L.DomUtil.create('div', 'bp-title leaflet-control', position);
+      el.id = 'bp-title';
+      var oldHeading = document.querySelector('main > h1');
+      if (oldHeading) el.appendChild(oldHeading);
+    }
     var h1 = el.querySelector('h1');
     if (embed) {
       if (h1) h1.remove();
