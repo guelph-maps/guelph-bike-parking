@@ -300,6 +300,48 @@
     return out;
   }
 
+  // Features tagged _minzoom (stored at the top level for closer views only) are
+  // dropped below that zoom, and the tag itself never reaches MapLibre.
+  var MINZOOM = '_minzoom';
+  function intValue(v) {
+    var r = new Reader(v, 1), n = r.v();
+    return v[0] === 0x30 ? (n % 2 ? -(n + 1) / 2 : n / 2) : n; // sint64 is zigzag; int64/uint64 plain
+  }
+  function keyIndex(L, name) {
+    outer: for (var k = 0; k < L.keys.length; k++) {
+      var b = L.keys[k];
+      if (b.length !== name.length) continue;
+      for (var i = 0; i < b.length; i++) if (b[i] !== name.charCodeAt(i)) continue outer;
+      return k;
+    }
+    return -1;
+  }
+  function applyMinzoom(layers, z) {
+    for (var i = 0; i < layers.length; i++) {
+      var L = layers[i], ki = keyIndex(L, MINZOOM);
+      if (ki < 0) continue;
+      L.features = L.features.filter(function (F) {
+        for (var t = 0; t < F.tags.length; t += 2) {
+          if (F.tags[t] !== ki) continue;
+          if (intValue(L.values[F.tags[t + 1]]) > z) return false;
+          F.tags = F.tags.slice(0, t).concat(F.tags.slice(t + 2));
+          break;
+        }
+        return true;
+      });
+    }
+    return layers;
+  }
+  function hasMinzoom(body) {
+    // cheap check before taking the slower decode/encode path
+    for (var i = 0; i + MINZOOM.length <= body.length; i++) {
+      if (body[i] !== 95) continue; // '_'
+      for (var k = 1; k < MINZOOM.length && body[i + k] === MINZOOM.charCodeAt(k); k++);
+      if (k === MINZOOM.length) return true;
+    }
+    return false;
+  }
+
   async function inflate(payload) {
     var ds = new DecompressionStream('deflate-raw');
     var stream = new Blob([payload.subarray(1)]).stream().pipeThrough(ds);
@@ -346,15 +388,16 @@
         var dz = z - tz, layers = await parent(key, tz, x >> dz, y >> dz, abort);
         if (!layers) return { data: new Uint8Array(0) };
         var mask = (1 << dz) - 1;
-        return { data: encode(slice(layers, dz, x & mask, y & mask, 64)) };
+        return { data: encode(applyMinzoom(slice(layers, dz, x & mask, y & mask, 64), z)) };
       }
       res = await pm.tilev4(params, abort);
       if (res && res.data instanceof Uint8Array && isGbt(res.data)) {
-        res = { data: toMvt(await inflate(res.data)), cacheControl: res.cacheControl, expires: res.expires };
+        var body = await inflate(res.data);
+        res = { data: hasMinzoom(body) ? encode(applyMinzoom(decode(body), z)) : toMvt(body), cacheControl: res.cacheControl, expires: res.expires };
       }
       return res;
     };
   }
 
-  root.GBT = { toMvt: toMvt, inflate: inflate, isGbt: isGbt, protocol: protocol, decode: decode, encode: encode, slice: slice };
+  root.GBT = { toMvt: toMvt, inflate: inflate, isGbt: isGbt, protocol: protocol, applyMinzoom: applyMinzoom, decode: decode, encode: encode, slice: slice };
 })(typeof self !== 'undefined' ? self : globalThis);
