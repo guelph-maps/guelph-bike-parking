@@ -56,7 +56,8 @@ Overpass API being up while people use it. `scripts/fetch-data.mjs` downloads bi
 parking from the Overpass API and the city boundary from Nominatim, keeps only parking
 inside city limits, and writes `data/bike-parking.geojson` and
 `data/guelph-boundary.geojson`, plus signed cycling routes (`route=bicycle` relations,
-clipped to the map area) in `data/cycle-routes.geojson`.
+clipped to the map area) in `data/cycle-routes.geojson`. Each file has one feature per
+line, sorted by OpenStreetMap id, so a diff shows exactly which racks or routes changed.
 
 The sites only ever publish the data committed in `data/`, so a bad edit in OpenStreetMap
 or an Overpass outage can't reach them. Every Monday `.github/workflows/data-refresh.yml`

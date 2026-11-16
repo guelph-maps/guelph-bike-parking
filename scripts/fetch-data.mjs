@@ -199,6 +199,13 @@ function splitAtGaps(points) {
   return out;
 }
 
+// One feature per line: still compact, but a refresh's diff shows each rack or
+// route that changed instead of one rewritten line.
+function geojsonText({ features, ...rest }) {
+  return JSON.stringify(rest).slice(0, -1) + ',"features":[\n' +
+    features.map((f) => JSON.stringify(f)).join(',\n') + '\n]}\n';
+}
+
 async function writeRoutes() {
   try {
     const json = await fetchOverpass(ROUTES_QUERY);
@@ -206,11 +213,11 @@ async function writeRoutes() {
       .sort((a, b) => a.properties.osm.localeCompare(b.properties.osm));
     if (!features.length) throw new Error('no routes with geometry in the response');
     await mkdir(OUT_DIR, { recursive: true });
-    await writeFile(join(OUT_DIR, 'cycle-routes.geojson'), JSON.stringify({
+    await writeFile(join(OUT_DIR, 'cycle-routes.geojson'), geojsonText({
       type: 'FeatureCollection',
       metadata: { source: 'OpenStreetMap contributors', license: 'ODbL-1.0', osm_base: json.osm3s?.timestamp_osm_base ?? null },
       features,
-    }) + '\n');
+    }));
     console.log(`Wrote ${features.length} cycling routes to ${OUT_DIR}/`);
   } catch (err) {
     console.warn(`Cycling routes unavailable, keeping the existing file: ${err.message}`);
@@ -237,7 +244,7 @@ const geojson = {
 };
 
 await mkdir(OUT_DIR, { recursive: true });
-await writeFile(join(OUT_DIR, 'bike-parking.geojson'), JSON.stringify(geojson) + '\n');
+await writeFile(join(OUT_DIR, 'bike-parking.geojson'), geojsonText(geojson));
 // Which app this data is for: the deploy refuses a mismatch (scripts/build-site.sh).
 await copyFile(new URL('../DATA_FORMAT', import.meta.url), join(OUT_DIR, 'FORMAT'));
 if (boundary) {
@@ -245,7 +252,7 @@ if (boundary) {
     type: 'FeatureCollection',
     features: [{ type: 'Feature', geometry: boundary, properties: { name: 'City of Guelph' } }],
   };
-  await writeFile(join(OUT_DIR, 'guelph-boundary.geojson'), JSON.stringify(boundaryGeojson) + '\n');
+  await writeFile(join(OUT_DIR, 'guelph-boundary.geojson'), geojsonText(boundaryGeojson));
 }
 
 const spaces = features.reduce((sum, f) => sum + (f.properties.capacity || 0), 0);
