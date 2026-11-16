@@ -351,7 +351,8 @@
   function isGbt(data) { return data && data.length > 0 && data[0] === MAGIC; }
 
   // One vector tile (MVT bytes) for z/x/y of a GBT file whose top level is `top`,
-  // from getRaw(z, x, y) -> stored payload (or null). Past the top level the tile is
+  // from getRaw(z, x, y, shared) -> stored payload (or null); `shared` fetches are
+  // used by several tiles, so they must not be cancelled with the one that asked. Past the top level the tile is
   // cut from its stored ancestor, so MapLibre works on a quarter of the data per
   // tile at each level deeper. Decoded ancestors are kept in `cache` (a Map).
   async function makeTile(getRaw, cache, cacheKey, top, z, x, y) {
@@ -360,7 +361,7 @@
       var p = cache.get(id);
       if (p) { cache.delete(id); cache.set(id, p); }
       else {
-        p = getRaw(top, px, py).then(async function (raw) { return isGbt(raw) ? decode(await inflate(raw)) : null; });
+        p = getRaw(top, px, py, true).then(async function (raw) { return isGbt(raw) ? decode(await inflate(raw)) : null; });
         p.catch(function () { cache.delete(id); });
         cache.set(id, p);
         if (cache.size > 8) cache.delete(cache.keys().next().value);
@@ -408,7 +409,7 @@
           return res;
         }
         var top = m[2] === undefined ? Infinity : +m[2];
-        return { data: await makeTile(function (z, x, y) { return raw(m[1], z, x, y, abort); }, cache, m[1], top, +m[3], +m[4], +m[5]) };
+        return { data: await makeTile(function (z, x, y, shared) { return raw(m[1], z, x, y, shared ? null : abort); }, cache, m[1], top, +m[3], +m[4], +m[5]) };
       },
       'pmtiles-raw': async function (params, abort) {
         var m = /^pmtiles-raw:\/\/(.+)\/(\d+)\/(\d+)\/(\d+)$/.exec(params.url);
@@ -425,8 +426,8 @@
     root.addProtocol('pmtiles', async function (params, abort) {
       var m = TILE_URL.exec(params.url);
       var top = m[2] === undefined ? Infinity : +m[2];
-      var data = await makeTile(function (z, x, y) {
-        return root.makeRequest({ url: 'pmtiles-raw://' + m[1] + '/' + z + '/' + x + '/' + y, type: 'arrayBuffer' }, abort || new AbortController())
+      var data = await makeTile(function (z, x, y, shared) {
+        return root.makeRequest({ url: 'pmtiles-raw://' + m[1] + '/' + z + '/' + x + '/' + y, type: 'arrayBuffer' }, shared || !abort ? new AbortController() : abort)
           .then(function (res) { return res && res.data ? new Uint8Array(res.data) : null; });
       }, workerCache, m[1], top, +m[3], +m[4], +m[5]);
       return { data: data };

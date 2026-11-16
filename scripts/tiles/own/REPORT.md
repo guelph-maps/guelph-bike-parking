@@ -6,7 +6,7 @@ benchmark's footing: tiles touching the city border (hard cut), levels 10–13 (
 ## What's worth shipping
 
 **0.88 MB, down from 1.74 MB for the benchmark (−49%) and 1.10 MB for the best Planetiler-only build (−20%).**
-It is also cheaper to draw at every zoom we timed. Screenshots differ from the 1.10 MB build only in label
+It draws as fast as the benchmark at the edge (Leaflet 14) and faster everywhere else we timed; close up (Leaflet 17�18) it is clearly faster. Screenshots differ from the 1.10 MB build only in label
 placement and the dash phase of a few dashed paths.
 
 On this branch's real settings (PR 31's margins per level, no level 10) the file is **1.17 MB**; PR 31's own
@@ -39,15 +39,15 @@ The pieces, in build order (`scripts/build-tiles.mjs`):
 
 ### Draw time
 
-Phone viewport (iPhone 13), CPU slowed 4×, median of 7 runs, base map alone (`lab/bench.mjs`). An empty
+Phone viewport (iPhone 13), CPU slowed 4×, median of 7 runs (9 for the edge and houses rows, re-run in reverse order), base map alone (`lab/bench.mjs`). An empty
 tile file takes ~470 ms (style, workers, glyphs, shaders), so the tiles' own share is what's left above that.
 
 | view | empty file | benchmark 1.74 | Planetiler-only 1.10 | **own 0.88** |
 |---|---|---|---|---|
 | phone opening, whole city (Leaflet 12) | 478 | 506 | 510 | **494** |
-| north-east edge (Leaflet 14) | 468 | 619 | 636 | **631** |
+| north-east edge (Leaflet 14) | 471 | 612 | 625 | **612** |
 | downtown (Leaflet 17) | 467 | 596 | 680 | **572** |
-| houses (Leaflet 18) | ~470 | 743 | 656 | **534** |
+| houses (Leaflet 18) | 469 | 563 | 655 | **507** |
 
 Whole app with its markers, phone, 4× (`lab/perf2.mjs`, median of 5):
 

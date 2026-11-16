@@ -93,7 +93,7 @@
   maplibregl.addProtocol('pmtiles', handlers.pmtiles);
   maplibregl.addProtocol('pmtiles-raw', handlers['pmtiles-raw']);
   // The workers make the tiles themselves, asking the page only for stored bytes.
-  maplibregl.importScriptInWorkers(abs('js/gbt.js'));
+  if (maplibregl.importScriptInWorkers) maplibregl.importScriptInWorkers(abs('js/gbt.js'));
   protocol.add(new pmtiles.PMTiles(lazySource));
 
   var started = false;
