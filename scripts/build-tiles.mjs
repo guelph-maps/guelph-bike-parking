@@ -17,18 +17,43 @@ import { existsSync, readFileSync, statSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cullPmtiles, outerRings } from './tiles/cull-pmtiles.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'build');
 const OUTPUT = join(BUILD, 'guelph.pmtiles');
 const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 
-// west, south, east, north: Guelph city limits plus a margin.
-const BOUNDS = [-80.40, 43.44, -80.08, 43.64];
+// Each zoom level covers the city boundary (saved by fetch-data.mjs) grown by
+// its own margin. Every level is a full new set of tiles, so the close-up levels
+// are most of the file: city + 2 km at level 14 is 1.16 MB, and 1 km would save
+// only 0.07 MB while showing blank squares at the edge on a laptop. Zoomed out,
+// a view spans far more ground, so the coarse levels reach further: with these
+// margins a phone sees no blank square from any zoom centred on the city or its
+// edge. Level 11 draws the map from zoom 12, where a phone opens; level 10 would
+// only serve zooming out past the city, which the map no longer allows
+// (minZoom in js/map.js), so it is left out. The file is 2.20 MB; one 2 km
+// margin for levels 10-14 was 2.00 MB but left a blank corner zoomed out, and the
+// old 5 km box was 3.07 MB. Level 11 at 6 km saves 0.06 MB but blanks phone edges.
+const CITY = join(ROOT, 'data', 'guelph-boundary.geojson');
+const MARGIN_KM = { 11: 8, 12: 6, 13: 4, 14: 2 };
+const UNCUT = join(BUILD, 'guelph-uncut.pmtiles');
 
 function fail(message) {
   console.error(`build-tiles: ${message}`);
   process.exit(1);
+}
+
+// The box around the city grown by the largest margin, for Planetiler's --bounds:
+// it builds every level over this box and cullPmtiles trims each level after.
+function buildBounds(geojsonPath, km) {
+  const pts = outerRings(JSON.parse(readFileSync(geojsonPath, 'utf8'))).flat();
+  if (!pts.length) fail(`${geojsonPath} has no polygon`);
+  const lat0 = pts.reduce((sum, p) => sum + p[1], 0) / pts.length;
+  const dx = km * 1000 / (111320 * Math.cos(lat0 * Math.PI / 180)), dy = km * 1000 / 110540;
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  return [Math.min(...xs) - dx, Math.min(...ys) - dy, Math.max(...xs) + dx, Math.max(...ys) + dy]
+    .map((v) => v.toFixed(4));
 }
 
 function resolveInput(arg) {
@@ -62,6 +87,8 @@ const javaOpts = (process.env.PLANETILER_JAVA_OPTS || '-Xmx3g').split(/\s+/).fil
 
 const tmpDir = join(BUILD, 'tmp');
 mkdirSync(BUILD, { recursive: true });
+if (!existsSync(CITY)) fail(`city boundary not found: ${CITY}`);
+const bounds = buildBounds(CITY, Math.max(...Object.values(MARGIN_KM)));
 
 const args = [
   ...javaOpts,
@@ -69,8 +96,8 @@ const args = [
   'generate-custom',
   `--schema=${SCHEMA}`,
   `--osm_path=${input}`,
-  `--output=${OUTPUT}`,
-  `--bounds=${BOUNDS.join(',')}`,
+  `--output=${UNCUT}`,
+  `--bounds=${bounds.join(',')}`,
   // Keep temp files and any downloads out of the repo's data/ folder.
   `--tmpdir=${tmpDir}`,
   `--download_dir=${join(BUILD, 'sources')}`,
@@ -87,7 +114,14 @@ rmSync(tmpDir, { recursive: true, force: true });
 
 if (run.error) fail(`could not start ${java}: ${run.error.message}`);
 if (run.status !== 0) fail(`planetiler exited with ${run.status ?? run.signal} after ${seconds}s`);
-if (!existsSync(OUTPUT)) fail(`planetiler finished but ${OUTPUT} is missing`);
+if (!existsSync(UNCUT)) fail(`planetiler finished but ${UNCUT} is missing`);
 
-const mb = (statSync(OUTPUT).size / 1024 / 1024).toFixed(2);
+const margins = Object.fromEntries(Object.entries(MARGIN_KM).map(([z, km]) => [z, km * 1000]));
+const kept = cullPmtiles(UNCUT, OUTPUT, JSON.parse(readFileSync(CITY, 'utf8')), margins);
+rmSync(UNCUT, { force: true });
+for (const [z, s] of Object.entries(kept)) {
+  console.log(`build-tiles: level ${z}: city + ${MARGIN_KM[z]} km, ${s.tiles} tiles, ${(s.bytes / 1e6).toFixed(2)} MB`);
+}
+
+const mb = (statSync(OUTPUT).size / 1e6).toFixed(2);
 console.log(`build-tiles: wrote ${OUTPUT} (${mb} MB) in ${seconds}s`);
