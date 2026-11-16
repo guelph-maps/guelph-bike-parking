@@ -175,15 +175,16 @@
       });
     }
 
-    // Further out, the total spaces with a ring showing the mix.
+    // Further out, the total spaces with a ring showing the mix. A bare number
+    // is spaces, like the pin badges; only a site count gets a word under it.
     var label = counted ? fmt.format(spaces) : String(children.length);
-    var unit = counted ? (spaces === 1 ? 'space' : 'spaces') : 'sites';
+    var unit = counted ? '' : '<span>sites</span>';
     var size = 36 + 5 * label.length;
     return L.divIcon({
       className: 'bp-cluster-wrap',
       html: '<div class="bp-cluster" title="' + title + '" style="width:' + size + 'px;height:' + size + 'px;' +
         'background:' + gradient + '">' + (covered ? ROOF : '') +
-        '<div class="bp-cluster-core"><b>' + label + '</b><span>' + unit + '</span></div></div>',
+        '<div class="bp-cluster-core"><b>' + label + '</b>' + unit + '</div></div>',
       iconSize: [size, size]
     });
   }
