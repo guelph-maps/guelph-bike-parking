@@ -83,7 +83,10 @@ function describeChange(before, after) {
 function routeChanges() {
   const before = byOsm(read(oldDir, 'cycle-routes'));
   const after = byOsm(read(newDir, 'cycle-routes'));
-  const name = (f) => `${f.properties.name || 'Unnamed'} route`;
+  const name = (f) => {
+    const n = f.properties.name || 'Unnamed';
+    return /\broute$/i.test(n) ? n : `${n} route`; // not "Signed Bicycle Route route"
+  };
   const lines = [];
   for (const [id, f] of after) {
     if (!before.has(id)) lines.push(`${link(name(f), id)}: new.`);
@@ -93,10 +96,8 @@ function routeChanges() {
   return lines;
 }
 
-const smallChanges = [
-  ...changed.map((f) => `${link(rackName(f.properties), f.properties.osm)}: ${describeChange(oldById.get(f.properties.osm), f)}.`),
-  ...routeChanges(),
-];
+// Racks stay features until the body is written, which adds their changeset comment.
+const smallChanges = [...changed, ...routeChanges()];
 if (!same(read(oldDir, 'guelph-boundary').features, read(newDir, 'guelph-boundary').features)) {
   smallChanges.push('The city boundary changed.');
 }
@@ -106,25 +107,46 @@ if (!added.length && !removed.length && !smallChanges.length) {
   process.exit(0);
 }
 
-// Who last edited each rack, so people can be credited. It's a nicety, so if
-// OpenStreetMap doesn't answer the summary goes out without names.
-async function lastEditors(features) {
-  const editors = new Map();
+async function osmApi(path) {
+  const res = await fetch(`https://api.openstreetmap.org/api/0.6/${path}`, {
+    headers: { 'User-Agent': USER_AGENT },
+    signal: AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// Who last edited each rack and in which changeset, so people can be credited
+// and say why. It's a nicety, so if OpenStreetMap doesn't answer the summary
+// goes out without names or comments.
+async function lastEdits(features) {
+  const edits = new Map();
   for (const kind of ['node', 'way', 'relation']) {
     const ids = features.map((f) => f.properties.osm).filter((id) => id.startsWith(`${kind}/`)).map((id) => id.split('/')[1]);
     if (!ids.length) continue;
     try {
-      const res = await fetch(`https://api.openstreetmap.org/api/0.6/${kind}s.json?${kind}s=${ids.join(',')}`, {
-        headers: { 'User-Agent': USER_AGENT },
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      for (const e of (await res.json()).elements) editors.set(`${kind}/${e.id}`, e.user);
+      for (const e of (await osmApi(`${kind}s.json?${kind}s=${ids.join(',')}`)).elements) {
+        edits.set(`${kind}/${e.id}`, { user: e.user, changeset: e.changeset });
+      }
     } catch (err) {
       console.warn(`Couldn't look up who edited these ${kind}s: ${err.message}`);
     }
   }
-  return editors;
+  return edits;
+}
+
+async function changesetComments(ids) {
+  const comments = new Map();
+  const unique = [...new Set(ids.filter(Boolean))];
+  for (let i = 0; i < unique.length; i += 100) {
+    try {
+      const json = await osmApi(`changesets.json?changesets=${unique.slice(i, i + 100).join(',')}`);
+      for (const c of json.changesets) comments.set(c.id, c.tags?.comment || '');
+    } catch (err) {
+      console.warn(`Couldn't look up changeset comments: ${err.message}`);
+    }
+  }
+  return comments;
 }
 
 // A bare @name on GitHub notifies whoever holds that login, and OSM names aren't
@@ -134,8 +156,24 @@ function mapper(name) {
   return `[${text}](${OSM}/user/${encodeURIComponent(name)})`;
 }
 
-const editors = await lastEditors([...added, ...removed, ...changed]);
-const editorOf = (f) => editors.get(f.properties.osm);
+// A changeset comment is free text: kept to one line, with nothing in it that
+// would break a table, format the text or notify someone on GitHub.
+function quote(text) {
+  const line = text.replace(/\s+/g, ' ').trim();
+  const short = line.length > 140 ? `${line.slice(0, 139).trimEnd()}…` : line;
+  return short.replace(/[\\`*_[\]<>|#~]/g, '\\$&').replace(/@/g, '@\u200b');
+}
+
+const edits = await lastEdits([...added, ...removed, ...changed]);
+const comments = await changesetComments([...edits.values()].map((e) => e.changeset));
+const editorOf = (f) => edits.get(f.properties.osm)?.user;
+// "“comment”", linked to the changeset; blank when OpenStreetMap didn't answer.
+function commentOf(f) {
+  const id = edits.get(f.properties.osm)?.changeset;
+  if (!id || !comments.has(id)) return '';
+  const text = comments.get(id);
+  return `[${text ? `“${quote(text)}”` : 'no comment'}](${OSM}/changeset/${id})`;
+}
 
 const spaceChange = spaces(newRacks) - spaces(oldRacks);
 function title() {
@@ -147,11 +185,17 @@ function title() {
 }
 
 function rackTable(features, heading, who) {
+  let previous = null;
   const rows = features.map((f) => {
     const p = f.properties;
-    return `| ${link(rackName(p), p.osm)} | ${p.capacity ?? '?'} | ${editorOf(f) ? mapper(editorOf(f)) : ''} |`;
+    // Several racks from one changeset quote its comment once.
+    const changeset = edits.get(p.osm)?.changeset;
+    const comment = changeset && changeset === previous && commentOf(f)
+      ? `[same as above](${OSM}/changeset/${changeset})` : commentOf(f);
+    previous = changeset;
+    return `| ${link(rackName(p), p.osm)} | ${p.capacity ?? '?'} | ${editorOf(f) ? mapper(editorOf(f)) : ''} | ${comment} |`;
   });
-  return [`**${heading}**`, '', `| Rack | Spaces | ${who} |`, '|---|---:|---|', ...rows, ''];
+  return [`**${heading}**`, '', `| Rack | Spaces | ${who} | Changeset comment |`, '|---|---:|---|---|', ...rows, ''];
 }
 
 // Values people have started using that the map has no pin for.
@@ -184,6 +228,13 @@ for (const f of [...added, ...changed]) {
 const thanked = [...thanks].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, n]) => `${mapper(name)} (${n})`);
 const thanksLine = thanked.length > 1 ? `${thanked.slice(0, -1).join(', ')} and ${thanked.at(-1)}` : thanked[0];
 
+function smallChangeLine(item) {
+  if (typeof item === 'string') return item;
+  const comment = commentOf(item);
+  return `${link(rackName(item.properties), item.properties.osm)}: ${describeChange(oldById.get(item.properties.osm), item)}.` +
+    (comment ? ` ${comment}` : '');
+}
+
 const big = removed.length >= 10 || removed.length >= oldRacks.features.length * 0.05;
 const shown = smallChanges.slice(0, MAX_SMALL_CHANGES);
 const hidden = smallChanges.length - shown.length;
@@ -203,7 +254,7 @@ const body = [
     ...unpinned.map((f) => `- ${link('This rack', f.properties.osm)} is tagged \`${f.properties.type}\`, which has no pin, so it shows as "Other".`),
     '',
   ] : []),
-  ...(shown.length ? ['**Small changes**', '', ...shown.map((line) => `- ${line}`), ...(hidden ? [`- And ${fmt(hidden)} more.`] : []), ''] : []),
+  ...(shown.length ? ['**Small changes**', '', ...shown.map((item) => `- ${smallChangeLine(item)}`), ...(hidden ? [`- And ${fmt(hidden)} more.`] : []), ''] : []),
   ...(thanksLine ? [`**Thanks to** ${thanksLine}.`, ''] : []),
   ...(next ? [next, ''] : []),
   'Merging updates beta. Publish a data release to put it live.',
