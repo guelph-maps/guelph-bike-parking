@@ -22,7 +22,7 @@ import { toGbtArchive } from './tiles/own/to-gbt.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'build');
-const OUTPUT = join(BUILD, 'guelph.pmtiles');
+const OUTPUT = resolve(process.env.TILE_OUTPUT || join(BUILD, 'guelph.pmtiles'));
 const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 
 // Each zoom level covers the city boundary (saved by fetch-data.mjs) grown by
@@ -39,7 +39,9 @@ const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 const CITY = join(ROOT, 'data', 'guelph-boundary.geojson');
 // Level 13 is the file's top level (the browser cuts deeper tiles from it, see
 // js/gbt.js), so it covers the close-up views level 14 used to.
-const MARGIN_KM = { 11: 8, 12: 6, 13: 4 };
+// TILE_MARGINS_KM (JSON, e.g. {"10":0,"11":0,"12":0,"13":0}) and TILE_OUTPUT override
+// these for experiments, such as the hard cut on the city border used to compare sizes.
+const MARGIN_KM = process.env.TILE_MARGINS_KM ? JSON.parse(process.env.TILE_MARGINS_KM) : { 11: 8, 12: 6, 13: 4 };
 const TOP = 13;
 const UNCUT = join(BUILD, 'guelph-uncut.pmtiles');
 
