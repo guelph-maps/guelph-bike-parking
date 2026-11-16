@@ -7,9 +7,11 @@
 //   - street map tiles: kept as you browse (capped), served from cache first
 // scripts/build-site.sh replaces __BUILD__ with the app's version, so each
 // release gets a fresh app cache; data and tiles carry over between releases,
-// and a deploy that only refreshes them isn't a release.
+// and a deploy that only refreshes them isn't a release. __BUILT__ becomes the
+// day that version was released (YYYY-MM-DD), shown next to it in the ⋮ menu.
 
 var BUILD = '__BUILD__';
+var BUILT = '__BUILT__';
 var APP_CACHE = 'app-' + BUILD;
 var DATA_CACHE = 'data-v1';
 var TILE_CACHE = 'tiles-v1';
@@ -71,9 +73,11 @@ self.addEventListener('activate', function (event) {
   }).then(function () { return self.clients.claim(); }));
 });
 
-// The page asks which release this is, to show it and spot a newer one.
+// The page asks which release this is, to show it and spot a newer one. Pages
+// that also want the date say so; older pages still expect the bare version.
 self.addEventListener('message', function (event) {
-  if (event.data && event.data.type === 'version' && event.ports[0]) event.ports[0].postMessage(BUILD);
+  if (!event.data || event.data.type !== 'version' || !event.ports[0]) return;
+  event.ports[0].postMessage(event.data.date ? { build: BUILD, date: BUILT } : BUILD);
 });
 
 self.addEventListener('fetch', function (event) {

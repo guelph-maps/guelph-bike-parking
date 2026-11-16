@@ -246,8 +246,10 @@
     else if (p.covered === 'no') chips.push(['Not covered', '']);
     if (p.fee === 'yes') chips.push(['Fee', 'warn']);
     else if (p.fee === 'no') chips.push(['Free', 'good']);
-    if (p.access === 'customers' || p.access === 'permit' || p.access === 'permissive') {
-      chips.push([{ customers: 'Customers only', permit: 'Permit needed', permissive: 'Permissive' }[p.access], 'warn']);
+    if (p.access === 'customers' || p.access === 'permit') {
+      chips.push([{ customers: 'Customers only', permit: 'Permit needed' }[p.access], 'warn']);
+    } else if (p.access === 'permissive') {
+      chips.push(['Open to the public', '']); // private land, the owner lets anyone use it
     }
     if (p.lit === 'yes') chips.push(['Lit at night', '']);
     if (p.surveillance && p.surveillance !== 'no') chips.push(['Surveillance', '']);
@@ -405,12 +407,9 @@
           el.innerHTML = '<a href="' + esc(full) + '" target="_blank" rel="noopener">Guelph bike parking <span aria-hidden="true">&#8599;</span></a>';
         } else {
           el.innerHTML = '<h1>Guelph Bike Parking' + (location.hostname === 'beta.guelph.bike' ? ' <span class="bp-beta">Beta</span>' : '') + '</h1>' +
-            '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>' +
-            '<button type="button" class="bp-menu-btn" title="More" aria-label="More" aria-haspopup="true" aria-expanded="false">' +
-              '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>' +
-              '<span class="bp-menu-dot" hidden></span></button>' +
+            '<button type="button" class="bp-menu-btn" title="About and version" aria-label="About and version" aria-haspopup="true" aria-expanded="false">' +
+              '<span aria-hidden="true">i</span><span class="bp-menu-dot" hidden></span></button>' +
             '<div class="bp-menu" hidden></div>';
-          L.DomEvent.on(el.querySelector('.bp-about-btn'), 'click', showAbout);
           setUpMenu(el);
         }
         L.DomEvent.disableClickPropagation(el);
@@ -421,7 +420,8 @@
     new Title().addTo(map);
   }
 
-  // The ⋮ menu: which release this is, and a way to start fresh.
+  // The title's menu, behind the "i" or a tap anywhere on the title: About,
+  // which release this is, and a way to start fresh.
   function setUpMenu(el) {
     var btn = el.querySelector('.bp-menu-btn');
     var box = el.querySelector('.bp-menu');
@@ -437,10 +437,16 @@
       btn.setAttribute('aria-expanded', 'false');
       el.classList.remove('is-menu-open');
     }
-    btn.addEventListener('click', function () { if (box.hidden) open(); else close(); });
+    // The whole title is the target; the button is there for the keyboard.
+    el.classList.add('has-menu');
+    el.addEventListener('click', function (e) {
+      if (box.contains(e.target)) return;
+      if (box.hidden) open(); else close();
+    });
     box.addEventListener('click', function (e) {
       var act = e.target.closest('[data-act]');
       if (!act) return;
+      if (act.dataset.act === 'about') { close(); showAbout(); return; }
       act.disabled = true;
       if (act.dataset.act === 'clear') {
         act.textContent = 'Clearing…';
@@ -762,14 +768,11 @@
         '<p>Where to lock your bike in Guelph. Each icon shows the kind of rack, and the number shows how many bikes it holds.</p>' +
         '<p><b>' + fmt.format(markers.length) + '</b> locations and <b>' + fmt.format(spaces) + '</b> counted spaces inside city limits. ' +
           'Data last updated ' + esc(updated) + '.</p>' +
-        '<h3>Where the data comes from</h3>' +
-        '<p>Everything on this map comes from ' + link('https://www.openstreetmap.org/about', 'OpenStreetMap') +
-          ', the free map anyone can edit. The map checks for changes every week.</p>' +
         '<h3>Something missing or wrong?</h3>' +
-        '<p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, or ' +
+        '<p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, the free map anyone can edit. ' +
+          'Counting the spaces helps most. You can also ' +
           link('https://www.openstreetmap.org/edit#map=17/' + map.getCenter().lat.toFixed(5) + '/' + map.getCenter().lng.toFixed(5), 'add new parking') +
-          '. Not a mapper? ' + link(REPO_URL + '/issues/new?title=' + encodeURIComponent('Bike parking correction'), 'Report it here') +
-          '. Adding the number of spaces helps most.</p>' +
+          '. Not a mapper? ' + link(REPO_URL + '/issues/new?title=' + encodeURIComponent('Bike parking correction'), 'Report it here') + '.</p>' +
         '<h3>Using it without signal</h3>' +
         '<div class="bp-offline-box"></div>' +
         '<p class="bp-about-foot">Map data &copy; OpenStreetMap contributors (ODbL). ' +
@@ -856,8 +859,12 @@
       if (!worker) return resolve(null);
       var channel = new MessageChannel();
       var t = setTimeout(function () { resolve(null); }, 3000); // releases before the menu don't answer
-      channel.port1.onmessage = function (e) { clearTimeout(t); resolve(e.data); };
-      worker.postMessage({ type: 'version' }, [channel.port2]);
+      channel.port1.onmessage = function (e) {
+        clearTimeout(t);
+        var d = e.data; // releases before the date answer with the bare version
+        resolve(!d ? null : typeof d === 'string' ? { build: d, date: null } : d);
+      };
+      worker.postMessage({ type: 'version', date: true }, [channel.port2]);
     });
   }
 
@@ -868,7 +875,7 @@
       askRelease(sw.controller).then(function (b) {
         // On a first visit the page came from the network, so it is this release.
         if (!hadController && !release.loaded) release.loaded = b;
-        else if (b && b !== release.loaded) release.newer = b;
+        else if (b && (!release.loaded || b.build !== release.loaded.build)) release.newer = b;
         hadController = true;
         syncMenu();
       });
@@ -895,17 +902,30 @@
       .then(function () { location.reload(); });
   }
 
-  function releaseLabel(b) {
+  function releaseLabel(r) {
+    var b = r && r.build;
     if (!b) return 'Version unknown';
     if (b === '__BUILD__') return 'Development copy';
     var m = /^(.+-dev)\.([0-9a-f]+)$/.exec(b); // a beta build, from scripts/build-site.sh
     return m ? 'Version ' + m[1] + ' (' + m[2] + ')' : 'Version ' + b;
   }
 
+  // "Released Nov 9, 2026"; a beta build is dated by its last change to the app.
+  function releaseDate(r) {
+    var m = r && /^(\d{4})-(\d\d)-(\d\d)$/.exec(r.date || '');
+    if (!m) return '';
+    // Built from parts, not parsed: "2026-11-09" alone is UTC midnight, the 8th here.
+    var day = new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+    return (/-dev\./.test(r.build) ? 'Updated ' : 'Released ') + day;
+  }
+
   function renderMenu(box) {
     var s = BikeBasemap.state();
     var bytes = (s.saved && s.saved.bytes) || (s.info && s.info.bytes);
-    var html = '<p class="bp-menu-version">' + esc(releaseLabel(release.loaded)) + '</p>';
+    var date = releaseDate(release.loaded);
+    var html = '<button type="button" class="bp-menu-item" data-act="about">About this map</button>' +
+      '<p class="bp-menu-version">' + esc(releaseLabel(release.loaded)) +
+      (date ? '<br><span class="bp-menu-date">' + esc(date) + '</span>' : '') + '</p>';
     if (release.newer) html += '<p class="bp-menu-new"><span>New</span> ' + esc(releaseLabel(release.newer)) + ' is ready</p>';
     html += '<div class="bp-menu-actions">' +
       (release.newer ? '<button type="button" data-act="update">Update now</button>' : '') +
@@ -922,7 +942,7 @@
     if (!box) return;
     el.querySelector('.bp-menu-dot').hidden = !release.newer;
     var btn = el.querySelector('.bp-menu-btn');
-    btn.title = release.newer ? 'More: a new version is ready' : 'More';
+    btn.title = release.newer ? 'About and version: a new version is ready' : 'About and version';
     btn.setAttribute('aria-label', btn.title);
     if (!box.hidden) renderMenu(box);
   }

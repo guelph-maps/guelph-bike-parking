@@ -139,7 +139,19 @@ jobs:
         run: scripts/get-tiles.sh "${{ steps.pick.outputs.data }}"
       - uses: actions/configure-pages@v5
       - name: Collect site files
-        run: scripts/build-site.sh "${{ steps.pick.outputs.app }}" "${{ steps.pick.outputs.data }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP: ${{ steps.pick.outputs.app }}
+          DATA: ${{ steps.pick.outputs.data }}
+        run: |
+          # The menu shows the day the app was released, in Guelph's time. The same
+          # date on every deploy of a release keeps sw.js unchanged between them.
+          published=$(gh release view "$APP" --repo "$GITHUB_REPOSITORY" --json publishedAt --jq '.publishedAt // empty' 2>/dev/null || true)
+          released=""
+          if [ -n "$published" ]; then
+            released=$(node -e 'console.log(new Date(process.argv[1]).toLocaleDateString("en-CA", { timeZone: "America/Toronto" }))' "$published")
+          fi
+          scripts/build-site.sh "$APP" "$DATA" "$released"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
