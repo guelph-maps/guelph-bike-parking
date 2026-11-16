@@ -3,7 +3,7 @@
 import { inflateRawSync } from 'node:zlib';
 import { listTiles } from '../../cull-pmtiles.mjs';
 import { decodeTile } from '../../own/mvt.mjs';
-import '../../../../js/gbt.js';
+import '../../../../../../js/gbt.js';
 const G = globalThis.GBT;
 const { tiles } = listTiles(process.argv[2]);
 let n = 0, ms = 0, slices = 0;

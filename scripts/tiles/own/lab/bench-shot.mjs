@@ -1,0 +1,11 @@
+import { chromium, devices } from 'playwright';
+const [tiles, slice, worker, out] = process.argv.slice(2);
+const browser = await chromium.launch({ channel: 'msedge' });
+const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+const page = await ctx.newPage();
+page.on('console', m => console.log('console:', m.type(), m.text().slice(0, 300)));
+page.on('pageerror', e => console.log('pageerror:', e.message));
+await page.goto(`http://localhost:8765/scripts/tiles/own/lab/bench.html?tiles=${tiles}&z=17&lat=43.5205&lng=-80.229&slice=${slice}&worker=${worker}`);
+await page.waitForFunction(() => window.__idle, null, { timeout: 60000 });
+await page.screenshot({ path: out });
+await browser.close();

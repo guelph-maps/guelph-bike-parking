@@ -89,7 +89,11 @@
   // Tiles in our own compact layout (js/gbt.js) are turned back into vector
   // tiles, and cut into smaller ones past the file's top level, so close-up
   // views draw less. Plain vector tile files pass through untouched.
-  maplibregl.addProtocol('pmtiles', GBT.protocol(protocol, { sliceTo: 15 }));
+  var handlers = GBT.protocols(protocol, { sliceTo: 15 });
+  maplibregl.addProtocol('pmtiles', handlers.pmtiles);
+  maplibregl.addProtocol('pmtiles-raw', handlers['pmtiles-raw']);
+  // The workers make the tiles themselves, asking the page only for stored bytes.
+  maplibregl.importScriptInWorkers(abs('js/gbt.js'));
   protocol.add(new pmtiles.PMTiles(lazySource));
 
   var started = false;

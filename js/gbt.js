@@ -350,54 +350,88 @@
 
   function isGbt(data) { return data && data.length > 0 && data[0] === MAGIC; }
 
-  // A MapLibre protocol handler on top of a pmtiles.Protocol: GBT payloads become
-  // MVT, and with opts.sliceTo the map is told the tiles go deeper than the file
-  // does, each deeper tile cut from its stored ancestor. MapLibre then works on a
-  // quarter of the data per tile at each level past the file's top level.
-  function protocol(pm, opts) {
-    var sliceTo = (opts && opts.sliceTo) || 0, top = {}, parents = new Map();
-    function parent(key, z, x, y, abort) {
-      var id = key + '/' + z + '/' + x + '/' + y, hit = parents.get(id);
-      if (hit) { parents.delete(id); parents.set(id, hit); return hit; }
-      var p = pm.tilev4({ url: 'pmtiles://' + id, type: 'arrayBuffer' }, new AbortController()).then(async function (res) {
-        if (!res || !isGbt(res.data)) return null;
-        return decode(await inflate(res.data));
-      });
-      p.catch(function () { parents.delete(id); });
-      parents.set(id, p);
-      if (parents.size > 12) parents.delete(parents.keys().next().value);
-      return p;
+  // One vector tile (MVT bytes) for z/x/y of a GBT file whose top level is `top`,
+  // from getRaw(z, x, y) -> stored payload (or null). Past the top level the tile is
+  // cut from its stored ancestor, so MapLibre works on a quarter of the data per
+  // tile at each level deeper. Decoded ancestors are kept in `cache` (a Map).
+  async function makeTile(getRaw, cache, cacheKey, top, z, x, y) {
+    if (z > top) {
+      var dz = z - top, px = x >> dz, py = y >> dz, id = cacheKey + '/' + px + '/' + py;
+      var p = cache.get(id);
+      if (p) { cache.delete(id); cache.set(id, p); }
+      else {
+        p = getRaw(top, px, py).then(async function (raw) { return isGbt(raw) ? decode(await inflate(raw)) : null; });
+        p.catch(function () { cache.delete(id); });
+        cache.set(id, p);
+        if (cache.size > 8) cache.delete(cache.keys().next().value);
+      }
+      var layers = await p;
+      if (!layers) return new Uint8Array(0);
+      var mask = (1 << dz) - 1;
+      return encode(applyMinzoom(slice(layers, dz, x & mask, y & mask, 64), z));
     }
-    return async function (params, abort) {
-      var m = /^pmtiles:\/\/(.+)\/(\d+)\/(\d+)\/(\d+)$/.exec(params.url);
-      if (!m) {
-        var res = await pm.tilev4(params, abort);
-        if (params.type === 'json' && res && res.data) {
-          // Only our own files (tile type 0, "unknown") can be cut deeper.
-          var key = params.url.substr(10), archive = pm.get(key);
-          var header = archive && await archive.getHeader();
-          if (header && header.tileType === 0 && sliceTo > res.data.maxzoom) {
-            top[key] = res.data.maxzoom;
-            res.data.maxzoom = sliceTo;
+    var raw = await getRaw(z, x, y);
+    if (!isGbt(raw)) return raw;
+    var body = await inflate(raw);
+    return hasMinzoom(body) ? encode(applyMinzoom(decode(body), z)) : toMvt(body);
+  }
+
+  var TILE_URL = /^pmtiles:\/\/(.+?)(?:@(\d+))?\/(\d+)\/(\d+)\/(\d+)$/;
+
+  // MapLibre protocol handlers on top of a pmtiles.Protocol `pm`, for the page:
+  //   pmtiles://key            TileJSON; for a GBT file (tile type 0) the tile URLs
+  //                            carry its top level (pmtiles://key@13/{z}/{x}/{y}) and
+  //                            maxzoom becomes opts.sliceTo, so MapLibre asks for
+  //                            deeper tiles than the file has.
+  //   pmtiles://key[@top]/z/x/y  a vector tile, made on the page (used only when the
+  //                            workers don't have the handler from installWorkers)
+  //   pmtiles-raw://key/z/x/y  the stored bytes, for the workers' handler
+  function protocols(pm, opts) {
+    var sliceTo = (opts && opts.sliceTo) || 0, cache = new Map();
+    function raw(key, z, x, y, abort) {
+      return pm.tilev4({ url: 'pmtiles://' + key + '/' + z + '/' + x + '/' + y, type: 'arrayBuffer' }, abort || new AbortController())
+        .then(function (res) { return res && res.data instanceof Uint8Array ? res.data : null; });
+    }
+    return {
+      pmtiles: async function (params, abort) {
+        var m = TILE_URL.exec(params.url);
+        if (!m) {
+          var res = await pm.tilev4(params, abort);
+          if (params.type === 'json' && res && res.data) {
+            var key = params.url.substr(10), archive = pm.get(key);
+            var header = archive && await archive.getHeader();
+            if (header && header.tileType === 0 && sliceTo > res.data.maxzoom) {
+              res.data.tiles = ['pmtiles://' + key + '@' + res.data.maxzoom + '/{z}/{x}/{y}'];
+              res.data.maxzoom = sliceTo;
+            }
           }
+          return res;
         }
-        return res;
+        var top = m[2] === undefined ? Infinity : +m[2];
+        return { data: await makeTile(function (z, x, y) { return raw(m[1], z, x, y, abort); }, cache, m[1], top, +m[3], +m[4], +m[5]) };
+      },
+      'pmtiles-raw': async function (params, abort) {
+        var m = /^pmtiles-raw:\/\/(.+)\/(\d+)\/(\d+)\/(\d+)$/.exec(params.url);
+        var data = await raw(m[1], +m[2], +m[3], +m[4], abort);
+        return { data: data ? data.slice() : new Uint8Array(0) };
       }
-      var key = m[1], z = +m[2], x = +m[3], y = +m[4], tz = top[key];
-      if (tz !== undefined && z > tz) {
-        var dz = z - tz, layers = await parent(key, tz, x >> dz, y >> dz, abort);
-        if (!layers) return { data: new Uint8Array(0) };
-        var mask = (1 << dz) - 1;
-        return { data: encode(applyMinzoom(slice(layers, dz, x & mask, y & mask, 64), z)) };
-      }
-      res = await pm.tilev4(params, abort);
-      if (res && res.data instanceof Uint8Array && isGbt(res.data)) {
-        var body = await inflate(res.data);
-        res = { data: hasMinzoom(body) ? encode(applyMinzoom(decode(body), z)) : toMvt(body), cacheControl: res.cacheControl, expires: res.expires };
-      }
-      return res;
     };
   }
 
-  root.GBT = { toMvt: toMvt, inflate: inflate, isGbt: isGbt, protocol: protocol, applyMinzoom: applyMinzoom, decode: decode, encode: encode, slice: slice };
+  // In a MapLibre worker (loaded with maplibregl.importScriptInWorkers): make the
+  // vector tiles here, off the page's thread, asking the page only for stored bytes.
+  if (typeof importScripts === 'function' && typeof root.addProtocol === 'function' && typeof root.makeRequest === 'function') {
+    var workerCache = new Map();
+    root.addProtocol('pmtiles', async function (params, abort) {
+      var m = TILE_URL.exec(params.url);
+      var top = m[2] === undefined ? Infinity : +m[2];
+      var data = await makeTile(function (z, x, y) {
+        return root.makeRequest({ url: 'pmtiles-raw://' + m[1] + '/' + z + '/' + x + '/' + y, type: 'arrayBuffer' }, abort || new AbortController())
+          .then(function (res) { return res && res.data ? new Uint8Array(res.data) : null; });
+      }, workerCache, m[1], top, +m[3], +m[4], +m[5]);
+      return { data: data };
+    });
+  }
+
+  root.GBT = { toMvt: toMvt, inflate: inflate, isGbt: isGbt, protocols: protocols, makeTile: makeTile, applyMinzoom: applyMinzoom, decode: decode, encode: encode, slice: slice };
 })(typeof self !== 'undefined' ? self : globalThis);
