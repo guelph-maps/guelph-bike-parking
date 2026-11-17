@@ -304,3 +304,47 @@ export function listTiles(file) {
   }
   return { header: h, tiles: out };
 }
+
+// Writes a PMTiles v3 file from a Map of "z/x/y" -> tile bytes (already compressed
+// as `header.tileCompression` says). `header` and `metadata` come from listTiles or
+// readArchive of the file the tiles were derived from; identical tiles are stored once.
+export function writeArchive(output, header, metadata, tiles) {
+  const list = [...tiles].map(([k, data]) => {
+    const [z, x, y] = k.split('/').map(Number);
+    return { tileId: zxyToTileId(z, x, y), z, data };
+  }).sort((a, b) => a.tileId - b.tileId);
+  const seen = new Map(), parts = [], entries = [];
+  let dataLength = 0;
+  for (const t of list) {
+    const key = t.data.toString('base64');
+    let offset = seen.get(key);
+    if (offset === undefined) {
+      offset = dataLength;
+      seen.set(key, offset);
+      parts.push(t.data);
+      dataLength += t.data.length;
+    }
+    const last = entries[entries.length - 1];
+    if (last && last.offset === offset && last.tileId + last.runLength === t.tileId) last.runLength++;
+    else entries.push({ tileId: t.tileId, runLength: 1, offset, length: t.data.length });
+  }
+  const { root, leaves } = buildDirectories(entries, header.internalCompression);
+  const f = {
+    rootOffset: HEADER, rootLength: root.length,
+    metadataOffset: HEADER + root.length, metadataLength: metadata.length,
+    leafOffset: HEADER + root.length + metadata.length, leafLength: leaves.length,
+    dataOffset: HEADER + root.length + metadata.length + leaves.length, dataLength,
+    addressed: list.length, entries: entries.length, contents: seen.size,
+    minZoom: Math.min(...list.map((t) => t.z)), maxZoom: Math.max(...list.map((t) => t.z)),
+  };
+  writeFileSync(output, Buffer.concat([writeHeader(header, f), root, metadata, leaves, ...parts]));
+  return HEADER + root.length + metadata.length + leaves.length + dataLength;
+}
+
+// listTiles plus the metadata block, for rewriting a file with writeArchive.
+export function readArchive(file) {
+  const buf = readFileSync(file);
+  const { header, tiles } = listTiles(file);
+  const metadata = buf.subarray(header.metadataOffset, header.metadataOffset + header.metadataLength);
+  return { header, metadata, tiles };
+}
