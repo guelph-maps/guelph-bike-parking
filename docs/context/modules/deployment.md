@@ -11,6 +11,10 @@ sourcePaths:
   - "scripts/mark-beta.mjs"
   - "scripts/publish-beta.sh"
   - "DATA_FORMAT"
+  - "MAP_FORMAT"
+  - "js/formats.js"
+  - "scripts/formats.mjs"
+  - ".github/workflows/formats.yml"
   - "data/FORMAT"
 lastRefreshedCommit: 65b96c9ca19f9ba7d0c4086cb913fe54eff66f1b
 confidence: high
@@ -52,7 +56,10 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - A production release needs both an app tag such as `v0.1.0` and a data tag such as `data-2026-11-09`, and the workflow exits early if either is missing.
 - On release-triggered production runs, a `v*` tag selects itself as the app; data always defaults to the newest `data-*` tag by name, even when an older data release triggered the run, so publishing an old draft can't roll data back. Workflow inputs override either side for deliberate rollbacks.
 - `DATA_FORMAT` and `data/FORMAT` must match exactly. A mismatch aborts the deploy and leaves the site on the last known-good release.
-- Beta requires `tiles/tiles.json` inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
+- `MAP_FORMAT` picks the base map file (`guelph.pmtiles` for 1, `guelph.v2.pmtiles` for 2, ...); production refuses an app whose map format has no published file.
+- From format 2, pins and the tiles manifest are published under versioned names (`data/bike-parking.v2.geojson`, `tiles/tiles.v2.json`) and the app (`js/formats.js`) only reads its own, so cached older apps never see newer data. For 60 days after a bump, deploys also publish the previous format's newest data under its names (`scripts/formats.mjs overlap`).
+- Pull requests that bump a format need the `breaking-data` label and a `Breaking-data: <kind> <old> -> <new>` trailer on the bumping commit (`.github/workflows/formats.yml`).
+- Beta requires the tiles manifest for its map format (`tiles/tiles.json`, `tiles/tiles.v2.json`, ...) inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
 - `scripts/get-tiles.sh` downloads the newest matching `guelph.pmtiles` asset for the data tag; production refuses to deploy if none exists.
 - Weekly drafts pin the data tag to the build commit, so publishing releases out of order cannot change the parking data selected by later app releases.
 - Weekly tile builds are safe for phones because `js/basemap.js` replaces a saved base map once it is 30 days behind, when the site rolls back, or on Android Wi-Fi. Publish weekly drafts only after an app release newer than v0.1.1 is live; older apps re-download the map (about 2.4 MB) on every file change.

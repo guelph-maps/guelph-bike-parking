@@ -36,7 +36,8 @@ jobs:
       - name: Get the last tile file, to compare with
         run: |
           scripts/get-tiles.sh
-          if [ -f build/guelph.pmtiles ]; then mv build/guelph.pmtiles build/last-release.pmtiles; fi
+          name=$(node scripts/formats.mjs asset)
+          if [ -f "build/$name" ]; then mv "build/$name" build/last-release.pmtiles; fi
       - name: Build the tiles from Geofabrik's Ontario extract
         env:
           PLANETILER_JAR: build/planetiler.jar
@@ -59,11 +60,18 @@ jobs:
             echo "::notice title=No new base map::The tiles match the last file; nothing published."
           fi
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
+      # The file is named for its map format (guelph.pmtiles, guelph.v2.pmtiles, ...;
+      # scripts/formats.mjs), so apps only ever get a map they can draw.
       - name: Save them as a draft data release
         id: release
         if: steps.diff.outputs.publish == 'yes'
         run: |
           tag="data-$(date -u +%F)"
+          name=$(node scripts/formats.mjs asset)
+          [ "build/$name" = build/guelph.pmtiles ] || cp build/guelph.pmtiles "build/$name"
+          notes="New base map (map format $(node scripts/formats.mjs format map)), with the map data on main at the time. Publishing this puts both live.
+
+          Publish this only once an app release newer than v0.1.1 is live. Phones on v0.1.1 or older download the whole map (about 2.4 MB) again every time the file changes."
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             # Never change the map file of a release that's already published.
             draft=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
@@ -75,17 +83,14 @@ jobs:
               echo "::error title=Release already published::$tag is published, and its map file stays as it is. Run this again tomorrow."
               exit 1
             fi
-            gh release upload "$tag" build/guelph.pmtiles --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$tag" "build/$name" --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
           else
             # Pin the data to this build. If releases are published out of order,
             # a later app release must still select data in tag-name order.
-            gh release create "$tag" build/guelph.pmtiles --draft --target "$GITHUB_SHA" --title "$tag" \
-              --notes 'New base map, with the map data on main at the time. Publishing this puts both live.
-
-          Publish this only once an app release newer than v0.1.1 is live. Phones on v0.1.1 or older download the whole map (about 2.4 MB) again every time the file changes.'
+            gh release create "$tag" "build/$name" --draft --target "$GITHUB_SHA" --title "$tag" --notes "$notes"
           fi
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx 'guelph.pmtiles'
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx "$name"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       # One waiting base map is enough: drop the older drafts this workflow made, so
       # whoever publishes picks the newest. By id, since a draft can share its tag.

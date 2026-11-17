@@ -5,7 +5,7 @@
 //
 //   node scripts/delta-summary.mjs <old-dir> <new-dir> <out-dir>
 
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync } from 'node:fs';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -27,9 +27,14 @@ const browser = {};
 new Function('window', readFileSync(join(ROOT, 'js', 'types.js'), 'utf8'))(browser);
 const types = browser.BIKE_PARKING_TYPES;
 
+// The file of that name in its newest format (name.geojson, name.v2.geojson, ...),
+// so a refresh that comes with a format bump still compares like with like.
 const read = (dir, name) => {
-  const file = join(dir, `${name}.geojson`);
-  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : { features: [] };
+  const pattern = new RegExp(`^${name}(\\.v(\\d+))?\\.geojson$`);
+  const files = existsSync(dir) ? readdirSync(dir).filter((f) => pattern.test(f)) : [];
+  const version = (f) => Number(pattern.exec(f)[2] || 1);
+  const file = files.sort((a, b) => version(b) - version(a))[0];
+  return file ? JSON.parse(readFileSync(join(dir, file), 'utf8')) : { features: [] };
 };
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const byOsm = (geojson) => new Map(geojson.features.map((f) => [f.properties.osm, f]));

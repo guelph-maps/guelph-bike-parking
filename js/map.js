@@ -2,9 +2,10 @@
   'use strict';
 
   var T = window.BIKE_PARKING_TYPES;
-  var DATA_URL = 'data/bike-parking.geojson';
-  var BOUNDARY_URL = 'data/guelph-boundary.geojson';
-  var ROUTES_URL = 'data/cycle-routes.geojson';
+  // Named for the pin format this app reads (js/formats.js).
+  var DATA_URL = BikeFormats.versioned('data/bike-parking.geojson', 'data');
+  var BOUNDARY_URL = BikeFormats.versioned('data/guelph-boundary.geojson', 'data');
+  var ROUTES_URL = BikeFormats.versioned('data/cycle-routes.geojson', 'data');
   var REPO_URL = 'https://github.com/guelph-maps/guelph-bike-parking';
   var SEARCH_BBOX = '-80.335,43.475,-80.140,43.605'; // west,south,east,north
   var GUELPH = [43.5448, -80.2482];

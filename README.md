@@ -211,17 +211,48 @@ Publish weekly base map drafts only once an app release newer than v0.1.1 is liv
 on v0.1.1 or older download the whole map (about 2.4 MB) again whenever the file changes.
 
 The production deploy fails at "Get the base map" if no published data release up to the
-chosen one has `guelph.pmtiles`. The weekly build never changes the file on a published release.
+chosen one has the app's map file (`guelph.pmtiles`, or `guelph.v2.pmtiles` from map format 2;
+see below). The weekly build never changes the file on a published release.
 
 To go back, run the Deploy site workflow from a release tag and name the older app or data
 release. Beta shows the next version with `-dev` (`0.1.1-dev`), worked out from the
 latest tag, so nothing needs bumping by hand.
 
-`DATA_FORMAT` says which data the app can read, and `data/FORMAT` which it was written
-as. Bump `DATA_FORMAT` when a change to the data or the tile schema would break an older
-app, and refresh the data. Production deploys run a preflight check for missing refs and
-format files, then refuse a mismatch and leave the site as it is, so such a change needs
-both an app and a data release: the first one fails, and the second goes live.
+### Breaking data changes
+
+`DATA_FORMAT` says which pins (`data/*.geojson`) the app can read, `MAP_FORMAT` which base
+map (tile schema and layout), and `js/formats.js` is the app's copy of both
+(`node scripts/formats.mjs check` keeps them equal; CI runs it). Bump one, by exactly one,
+when a change would break an app that's already on phones.
+
+From format 2 up, everything of that kind is published under names carrying the format:
+
+| Kind | Format 1 | Format 2 |
+|---|---|---|
+| Pins | `data/bike-parking.geojson` | `data/bike-parking.v2.geojson` |
+| Base map manifest | `tiles/tiles.json` | `tiles/tiles.v2.json` |
+| Base map release file | `guelph.pmtiles` | `guelph.v2.pmtiles` |
+
+An app only ever fetches its own format's names, so a phone still running an older copy
+never reads data it can't understand. For 60 days after a bump (the date of the commit that
+changed the format file), every deploy also publishes the newest data of the previous
+format under its old names: pins from the last `data-*` release of that format, and the
+last base map file of that format. After that, older apps that never updated lose the
+data and fall back to the street map; the offline copy a phone already saved keeps working.
+
+How to ship one:
+
+1. In the pull request, bump the format file, update `js/formats.js` (and the pin names
+   in `index.html` for a pin format), and label it `breaking-data`. The commit that bumps
+   the file carries a trailer such as `Breaking-data: map 1 -> 2`. The Data formats check
+   fails without them, and fails a labelled pull request that bumps nothing.
+2. For a pin format, run `scripts/fetch-data.mjs`: it writes the new names and removes the
+   old ones. For a map format, run the Build base map tiles workflow: it uploads the file
+   under the new name (`guelph.v2.pmtiles`).
+3. Release the app and the data together. Production refuses an app whose pin format
+   doesn't match the data release, or whose map format has no file yet, and leaves the
+   site as it was, so the first release fails and the second goes live. Mention the
+   breaking change in both release notes.
 
 Every library is vendored in `vendor/`, byte-identical to its npm release, so the map
 loads nothing from third-party CDNs: Leaflet 1.9.4, Leaflet.markercluster 1.5.3,
