@@ -88,7 +88,14 @@
   };
 
   var protocol = new pmtiles.Protocol();
-  maplibregl.addProtocol('pmtiles', protocol.tile);
+  // Our tile files (js/gbt.js) are turned back into vector tiles, and cut into
+  // smaller ones past the file's top level, so close-up views draw less. Plain
+  // vector tile files pass through untouched.
+  var handlers = GBT.protocols(protocol, { sliceTo: 15 });
+  maplibregl.addProtocol('pmtiles', handlers.pmtiles);
+  maplibregl.addProtocol('pmtiles-raw', handlers['pmtiles-raw']);
+  // The workers make the tiles themselves, asking the page only for stored bytes.
+  if (maplibregl.importScriptInWorkers) maplibregl.importScriptInWorkers(abs('js/gbt.js'));
   protocol.add(new pmtiles.PMTiles(lazySource));
 
   var started = false;
