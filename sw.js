@@ -26,6 +26,7 @@ var APP_FILES = [
   'css/map.css',
   'js/types.js',
   'js/formats.js',
+  'js/gbt.js',
   'js/basemap.js',
   'js/style.js',
   'js/map.js',
