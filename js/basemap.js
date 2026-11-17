@@ -9,7 +9,9 @@
 (function () {
   'use strict';
 
-  var INFO_URL = 'tiles/tiles.json';
+  // Named for the map format this app reads (js/formats.js), so an older copy of
+  // the app never picks up a map it can't draw.
+  var INFO_URL = BikeFormats.versioned('tiles/tiles.json', 'map');
   var CACHE = 'basemap-v1';
   var KEY = 'guelph'; // what the style's pmtiles:// URL points at
 
