@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Builds the cycling base map tiles for Guelph (build/guelph.pmtiles) from an
+// Builds the cycling base map tiles for Guelph (build/guelph.pmtiles, or
+// build/guelph.v2.pmtiles from map format 2: scripts/formats.mjs) from an
 // OpenStreetMap extract with Planetiler and the custom schema in scripts/tiles/.
 //
 //   node scripts/build-tiles.mjs [input.osm.pbf] [-- extra planetiler args]
@@ -20,11 +21,12 @@ import { fileURLToPath } from 'node:url';
 import { cullPmtiles, outerRings } from './tiles/cull-pmtiles.mjs';
 import { readFormat, versioned } from './formats.mjs';
 import { toGbtArchive } from './tiles/own/to-gbt.mjs';
+import { readFormat, tilesAsset } from './formats.mjs';
 import { trimPmtiles, RECOMMENDED } from './tiles/own/trim.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'build');
-const OUTPUT = resolve(process.env.TILE_OUTPUT || join(BUILD, 'guelph.pmtiles'));
+const OUTPUT = resolve(process.env.TILE_OUTPUT || join(BUILD, tilesAsset(readFormat('map'))));
 const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 
 // Each zoom level covers the city boundary (saved by fetch-data.mjs) grown by

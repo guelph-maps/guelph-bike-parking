@@ -52,7 +52,7 @@ jobs:
       - name: Check whether the tiles changed
         id: diff
         run: |
-          result=$(node scripts/tiles-changed.mjs build/last-release.pmtiles build/guelph.pmtiles)
+          result=$(node scripts/tiles-changed.mjs build/last-release.pmtiles "build/$(node scripts/formats.mjs asset)")
           echo "Tiles since the last file: $result"
           publish=yes
           if [ "$result" = same ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then
@@ -68,7 +68,6 @@ jobs:
         run: |
           tag="data-$(date -u +%F)"
           name=$(node scripts/formats.mjs asset)
-          [ "build/$name" = build/guelph.pmtiles ] || cp build/guelph.pmtiles "build/$name"
           notes="New base map (map format $(node scripts/formats.mjs format map)), with the map data on main at the time. Publishing this puts both live.
 
           Publish this only once an app release newer than v0.1.1 is live. Phones on v0.1.1 or older download the whole map (about 2.4 MB) again every time the file changes."
