@@ -1,0 +1,67 @@
+name: Data formats
+
+# Breaking changes to the pins, the base map or its schema must say so, because
+# they need an app release, a data release, and a period where both formats are
+# published (scripts/formats.mjs). A pull request that bumps DATA_FORMAT or
+# MAP_FORMAT needs the `breaking-data` label and a commit with a trailer such as
+#   Breaking-data: map 1 -> 2
+# and a pull request with the label must bump one of them.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  formats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: App, data and page agree on the formats
+        run: node scripts/formats.mjs check
+      - name: Breaking changes are labelled and bump a format
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+          LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'breaking-data') }}
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only "$BASE...$HEAD")
+          bumped=""
+          for kind in data map; do
+            file=$([ $kind = data ] && echo DATA_FORMAT || echo MAP_FORMAT)
+            echo "$changed" | grep -qx "$file" || continue
+            before=$(git show "$BASE:$file" 2>/dev/null || echo 1)
+            after=$(git show "$HEAD:$file")
+            [ "$after" = "$before" ] && continue # a new format file at 1 is no bump
+            if [ "$after" != "$((before + 1))" ]; then
+              echo "::error file=$file,title=Format must go up by one::$file goes from $before to $after. Old-format data is published for one format back only."
+              exit 1
+            fi
+            if ! git log --format=%B "$BASE..$HEAD" -- "$file" | grep -qiE "^Breaking-data: *$kind +$before *-> *$after"; then
+              echo "::error file=$file,title=Missing trailer::The commit that bumps $file needs the trailer 'Breaking-data: $kind $before -> $after'."
+              exit 1
+            fi
+            bumped="$bumped $kind $before->$after"
+          done
+          if [ -n "$bumped" ] && [ "$LABELLED" != true ]; then
+            echo "::error title=Missing label::This pull request bumps a data format ($bumped ); add the breaking-data label."
+            exit 1
+          fi
+          if [ -z "$bumped" ] && [ "$LABELLED" = true ]; then
+            echo "::error title=Label without a bump::The breaking-data label is set, but neither DATA_FORMAT nor MAP_FORMAT changes."
+            exit 1
+          fi
+          # A reminder, not a failure: these files shape what older apps read.
+          if [ -z "$bumped" ]; then
+            for f in $(echo "$changed" | grep -E '^(scripts/tiles/schema\.yml|scripts/fetch-data\.mjs|scripts/build-tiles\.mjs|scripts/tiles/own/|js/gbt\.js)' || true); do
+              echo "::warning file=$f,title=Could this break older apps?::If an app already on phones can't read the result, bump the format (scripts/formats.mjs) and add the breaking-data label."
+            done
+          fi
+          echo "ok:${bumped:- no format change}"
