@@ -146,7 +146,8 @@
     order.sort(function (a, b) {
       return (a === 'unknown') - (b === 'unknown') || groups[b].sites - groups[a].sites;
     });
-    var title = esc(plural(children.length, 'location') + (counted ? ', ' + plural(spaces, 'bike space') : '') + ': ' +
+    var title = esc(plural(children.length, 'location') + (counted ? ', ' + plural(spaces, 'bike space') : '') +
+      (covered === true ? ', all covered' : covered === 'some' ? ', some covered' : '') + ': ' +
       order.map(function (k) {
         var g = groups[k];
         return g.type.label + ' ×' + g.sites + (g.spaces ? ' (' + fmt.format(g.spaces) + ')' : '');
@@ -317,9 +318,9 @@
           '<div class="bp-legend-help">' +
             '<p><span><span class="bp-key-badge">8</span></span><span>how many bikes fit (<b>?</b> = not recorded yet)</span></p>' +
             '<p><span class="bp-key-roof"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + roof(true) +
-              T.svg(T.list[0], 14) + '</span></span><span>covered or indoor</span></p>' +
+              T.svg(T.list[0], 14) + '</span></span><span>all spots covered or indoor</span></p>' +
             '<p><span class="bp-key-roof"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + roof('some') +
-              T.svg(T.list[0], 14) + '</span></span><span>some spots in the group covered</span></p>' +
+              T.svg(T.list[0], 14) + '</span></span><span>some spots covered</span></p>' +
             '<p><span class="bp-key-stack"><span class="bp-marker" style="--c:' + T.list[0].color + '">' + T.svg(T.list[0], 14) + '</span></span>' +
               '<span>several spots of one type, spaces added up</span></p>' +
             '<p><span><span class="bp-key-cluster"><b>42</b></span></span><span>mixed types nearby, colours show the mix; zoom in for each spot</span></p>' +
