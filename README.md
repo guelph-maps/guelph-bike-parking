@@ -206,6 +206,21 @@ MapLibre GL 5.24.0 (the last line with a plain-script build; 6.x is ES modules o
 @maplibre/maplibre-gl-leaflet 0.1.4, PMTiles 4.5.0, and Noto Sans glyphs (Latin and
 punctuation ranges) from [protomaps/basemaps-assets](https://github.com/protomaps/basemaps-assets).
 
+## Visitor stats
+
+Visits are counted with [GoatCounter](https://www.goatcounter.com/), which keeps no
+cookies and stores no personal data. The dashboard is at
+[osm-guelph.goatcounter.com](https://osm-guelph.goatcounter.com/) (sign in to see it).
+Each site counts under its own path, so filter by path to see one:
+
+| Site | Path |
+|---|---|
+| [guelph.bike](https://guelph.bike/) | `/guelph-bike-parking/` |
+| [beta.guelph.bike](https://beta.guelph.bike/) | `/beta/` |
+
+Embedded maps, local runs and test runs aren't counted. The counter is set up near the
+top of `js/map.js`.
+
 ## Offline
 
 Guelph's mobile signal is patchy, so the map is built to work without it. `sw.js` is a
