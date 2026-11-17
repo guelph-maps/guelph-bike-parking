@@ -90,7 +90,7 @@ The map is only as good as these tags, so if a rack's `capacity` or type is wron
 The default base map is ours: vector tiles of Guelph and its surroundings in one
 [PMTiles](https://docs.protomaps.com/pmtiles/) file, drawn by
 [MapLibre GL](https://maplibre.org) underneath Leaflet. All of Guelph at every zoom is
-about 2.4 MB, so the app saves the whole file on the device (`js/basemap.js`) and the map
+about 1.2 MB, so the app saves the whole file on the device (`js/basemap.js`) and the map
 works with no signal anywhere in the city. It's styled for cycling (`js/style.js`):
 
 - solid blue: cycleways and paths designated for bikes; dashed blue: bikes allowed;
@@ -103,21 +103,26 @@ works with no signal anywhere in the city. It's styled for cycling (`js/style.js
 The tiles are built with [Planetiler](https://github.com/onthegomap/planetiler) and the
 custom schema in `scripts/tiles/schema.yml`, which keeps only what the style draws
 (each layer's classes and attributes are described in its comments; test cases in
-`schema.spec.yml`). They're built from Geofabrik's Ontario extract every Monday evening,
-or by hand (Actions → Build base map tiles). A week whose tiles match the last file's
+`schema.spec.yml`), up to level 13. Our own step then trims them to what `js/style.js`
+draws and stores them in our own compact layout, which `js/gbt.js` turns back into
+vector tiles in MapLibre's workers, cutting the close-up levels 14 and 15 from level 13
+as the map asks for them. How and why: [docs/basemap-pipeline.md](docs/basemap-pipeline.md).
+They're built from Geofabrik's Ontario extract every Monday evening, or by hand
+(Actions → Build base map tiles). A week whose tiles match the last file's
 (`scripts/tiles-changed.mjs`) publishes nothing. Otherwise the result is a draft data
-release holding `guelph.pmtiles`, replacing any older such draft: beta uses it straight
-away, and publishing the draft puts it on production. Production always takes the newest
-data release by name, with the parking data from its build's commit, so publishing an
-older draft late changes nothing. A data release without a tile file keeps the one before it.
-`scripts/publish-tiles.mjs` copies the file into the site
-under a content-hashed name and writes `tiles/tiles.json`. Each deploy also keeps the
-file the site was serving until then (`scripts/get-live-tiles.sh`), so a page that's
-streaming it when a new map goes live keeps its tiles; the one before that is dropped.
+release holding `guelph.v2.pmtiles` (named for the map format, see
+[Breaking data changes](#breaking-data-changes)), replacing any older such draft: beta uses
+it straight away, and publishing the draft puts it on production. Production always takes
+the newest data release by name, with the parking data from its build's commit, so
+publishing an older draft late changes nothing. A data release without a tile file keeps
+the one before it. `scripts/publish-tiles.mjs` copies the file into the site under a
+content-hashed name and writes `tiles/tiles.v2.json`. Each deploy also keeps the file the
+site was serving until then (`scripts/get-live-tiles.sh`), so a page that's streaming it
+when a new map goes live keeps its tiles; the one before that is dropped.
 
 Streaming maps (embeds, and phones that haven't saved the map) always show the newest
 file. A phone that has saved an older copy doesn't fetch every new one, since each is
-about 2.4 MB: it updates in the background once its copy's OpenStreetMap data is 30 days behind,
+about 1.2 MB: it updates in the background once its copy's OpenStreetMap data is 30 days behind,
 or sooner when Chrome on Android reports Wi-Fi (iPhones don't say), and switches on the
 next visit. It also replaces the saved copy when the site rolls back to an older map.
 About shows the saved copy's date and an "Update saved map" button.
@@ -134,7 +139,8 @@ java -jar path/to/planetiler.jar verify scripts/tiles/schema.yml   # schema test
 Without an argument, `build-tiles.mjs` reads the Ontario extract named in
 `$OSM_DATA_DIR/ontario/latest.json` (default `~/Code/.osm-data`). It takes about a minute.
 Each zoom level covers the city boundary in `data/guelph-boundary.geojson` grown by
-its own margin, from 8 km at the most zoomed-out level to 2 km close up (`MARGIN_KM`).
+its own margin, from 8 km at level 11 to 4 km at level 13, the top one (`MARGIN_KM`).
+The trim step reads `js/style.js`, so rebuild the tiles after a style change.
 
 ## Running locally
 
