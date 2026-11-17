@@ -7,7 +7,7 @@
 (function (root) {
   'use strict';
 
-  var formats = { data: 1, map: 1 };
+  var formats = { data: 1, map: 2 };
 
   function versioned(path, kind) {
     var n = formats[kind];
