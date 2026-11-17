@@ -35,16 +35,20 @@ jobs:
           echo "f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d  build/planetiler.jar" | sha256sum -c -
           curl -sSfL -o build/ontario.osm.pbf https://download.geofabrik.de/north-america/canada/ontario-latest.osm.pbf
           node scripts/build-tiles.mjs build/ontario.osm.pbf
+      # The file is named for its map format (guelph.pmtiles, guelph.v2.pmtiles, ...;
+      # scripts/formats.mjs), so apps only ever get a map they can draw.
       - name: Save them as a draft data release
         run: |
           tag="data-$(date -u +%F)"
+          name=$(node scripts/formats.mjs asset)
+          [ "build/$name" = build/guelph.pmtiles ] || cp build/guelph.pmtiles "build/$name"
+          notes="New base map (map format $(node scripts/formats.mjs format map)), with the map data on main at the time. Publishing this puts both live."
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$tag" build/guelph.pmtiles --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$tag" "build/$name" --repo "$GITHUB_REPOSITORY" --clobber
           else
-            gh release create "$tag" build/guelph.pmtiles --draft --target "$GITHUB_SHA" --title "$tag" \
-              --notes 'New base map, with the map data on main at the time. Publishing this puts both live.'
+            gh release create "$tag" "build/$name" --draft --target "$GITHUB_SHA" --title "$tag" --notes "$notes"
           fi
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx 'guelph.pmtiles'
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx "$name"
       # Actions can't set off other workflows by creating a release, only by asking.
       - name: Update the beta site
         run: gh workflow run deploy.yml --ref main
