@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<link rel="stylesheet" href="/vendor/maplibre-gl/maplibre-gl.css">
+<style>html,body,#m{margin:0;height:100%}</style><div id="m"></div>
+<script src="/vendor/maplibre-gl/maplibre-gl.js"></script>
+<script src="/vendor/pmtiles/pmtiles.js"></script>
+<script src="/js/gbt.js"></script>
+<script>
+// Base map only: MapLibre + our style + one tile file, no Leaflet, no markers.
+// ?tiles=/build/x.pmtiles&z=11&lat=..&lng=..&style=/js/style.js
+var q = new URLSearchParams(location.search);
+window.__dec = 0;
+var protocol = new pmtiles.Protocol();
+var handlers = GBT.protocols(protocol, { sliceTo: +(q.get('slice') || 0) });
+maplibregl.addProtocol('pmtiles', async function (params, abort) {
+  var t = performance.now(); var r = await handlers.pmtiles(params, abort); window.__dec += performance.now() - t; return r;
+});
+maplibregl.addProtocol('pmtiles-raw', handlers['pmtiles-raw']);
+if (q.get('worker') === '1') maplibregl.importScriptInWorkers(new URL('/js/gbt.js', location.href).href);
+protocol.add(new pmtiles.PMTiles(q.get('tiles')));
+var s = document.createElement('script');
+s.src = q.get('style') || '/js/style.js';
+s.onload = function () {
+  window.__t0 = performance.now();
+  var map = window.__map = new maplibregl.Map({ container: 'm', style: (function () { var st = bikeStyle('pmtiles://' + q.get('tiles')); st.glyphs = location.origin + '/vendor/fonts/{fontstack}/{range}.pbf'; return st; })(), center: [+q.get('lng'), +q.get('lat')], zoom: +q.get('z'), attributionControl: false, fadeDuration: 0 });
+  map.once('idle', function () { window.__idle = performance.now() - window.__t0; });
+};
+document.head.appendChild(s);
+</script>
