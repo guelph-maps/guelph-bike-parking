@@ -69,7 +69,35 @@ git archive "$app_ref" $app | tar -x -C _site
 git archive "$data_ref" data | tar -x -C _site
 rm _site/data/FORMAT
 sed -i "s/__BUILD__/$stamp/; s/__BUILT__/$built/" _site/sw.js
+
+# The base map in the format this app reads (scripts/get-tiles.sh fetched it).
 # Without tiles the map falls back to OpenStreetMap's street map.
-if [ -f build/guelph.pmtiles ]; then node scripts/publish-tiles.mjs _site/tiles; fi
+map_format=$(node scripts/formats.mjs format map "$app_ref")
+map_file=build/$(node scripts/formats.mjs asset "$map_format")
+if [ -f "$map_file" ]; then node scripts/publish-tiles.mjs _site/tiles "$map_format"; fi
+
+# For a while after a format bump (scripts/formats.mjs), phones still running the
+# previous app keep getting data they can read, under the old format's names.
+old_data=$(node scripts/formats.mjs overlap "$app_ref" data)
+if [ -n "$old_data" ]; then
+  old_ref=""
+  for tag in $(git tag --list 'data-*' --sort=-v:refname); do
+    if [ "$(git show "$tag:data/FORMAT" 2>/dev/null)" = "$old_data" ]; then old_ref=$tag; break; fi
+  done
+  if [ -n "$old_ref" ]; then
+    git archive "$old_ref" data | tar -x -C _site --wildcards 'data/*.geojson'
+    echo "Also published pins in format $old_data from $old_ref, for older apps"
+  else
+    echo "::warning title=No old-format pins::No data release has pin format $old_data; older apps will find no pins."
+  fi
+fi
+old_map=$(node scripts/formats.mjs overlap "$app_ref" map)
+if [ -n "$old_map" ]; then
+  if [ -f "build/$(node scripts/formats.mjs asset "$old_map")" ]; then
+    node scripts/publish-tiles.mjs _site/tiles "$old_map"
+  else
+    echo "::warning title=No old-format map::No base map in format $old_map was fetched; older apps fall back to the street map."
+  fi
+fi
 touch _site/.nojekyll
 echo "Built $stamp with the data from $data_ref"

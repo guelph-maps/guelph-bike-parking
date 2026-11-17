@@ -85,7 +85,7 @@ The map is only as good as these tags, so if a rack's `capacity` or type is wron
 The default base map is ours: vector tiles of Guelph and its surroundings in one
 [PMTiles](https://docs.protomaps.com/pmtiles/) file, drawn by
 [MapLibre GL](https://maplibre.org) underneath Leaflet. All of Guelph at every zoom is
-about 3 MB, so the app saves the whole file on the device (`js/basemap.js`) and the map
+about 1.2 MB, so the app saves the whole file on the device (`js/basemap.js`) and the map
 works with no signal anywhere in the city. It's styled for cycling (`js/style.js`):
 
 - solid blue: cycleways and paths designated for bikes; dashed blue: bikes allowed;
@@ -98,12 +98,16 @@ works with no signal anywhere in the city. It's styled for cycling (`js/style.js
 The tiles are built with [Planetiler](https://github.com/onthegomap/planetiler) and the
 custom schema in `scripts/tiles/schema.yml`, which keeps only what the style draws
 (each layer's classes and attributes are described in its comments; test cases in
-`schema.spec.yml`). They're built on request (Actions → Build base map tiles) from
+`schema.spec.yml`), up to level 13. Our own step then trims them to what `js/style.js`
+draws and stores them in our own compact layout, which `js/gbt.js` turns back into
+vector tiles in MapLibre's workers, cutting the close-up levels 14 and 15 from level 13
+as the map asks for them. How and why: [docs/basemap-pipeline.md](docs/basemap-pipeline.md). They're built on request (Actions → Build base map tiles) from
 Geofabrik's Ontario extract, because each new file is a download on every phone. The
-result is a draft data release holding `guelph.pmtiles`: beta uses it straight away, and
+result is a draft data release holding `guelph.v2.pmtiles` (named for the map format, see
+[Breaking data changes](#breaking-data-changes)): beta uses it straight away, and
 publishing the draft pushes it to production. A data release without a tile file keeps the one
 before it. `scripts/publish-tiles.mjs` copies the file
-into the site under a content-hashed name and writes `tiles/tiles.json`; phones that have
+into the site under a content-hashed name and writes `tiles/tiles.v2.json`; phones that have
 an older copy download the new one in the background and switch on the next visit.
 
 To build locally (Java 21+ and the
@@ -118,7 +122,8 @@ java -jar path/to/planetiler.jar verify scripts/tiles/schema.yml   # schema test
 Without an argument, `build-tiles.mjs` reads the Ontario extract named in
 `$OSM_DATA_DIR/ontario/latest.json` (default `~/Code/.osm-data`). It takes about a minute.
 Each zoom level covers the city boundary in `data/guelph-boundary.geojson` grown by
-its own margin, from 8 km at the most zoomed-out level to 2 km close up (`MARGIN_KM`).
+its own margin, from 8 km at level 11 to 4 km at level 13, the top one (`MARGIN_KM`).
+The trim step reads `js/style.js`, so rebuild the tiles after a style change.
 
 ## Running locally
 
@@ -171,7 +176,7 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
 | Data | `data-2026-11-09` | `data/` at that tag, and `guelph.pmtiles` if the release has one |
 
 Release checklist for the bike base map: when a new `data-*` release carries a new
-`guelph.pmtiles` file, upload that asset to the published release before publishing it.
+`guelph.pmtiles` file (`guelph.v2.pmtiles` from map format 2, see below), upload that asset to the published release before publishing it.
 `./scripts/get-tiles.sh` only picks up non-draft `data-*` releases whose asset list includes
 `guelph.pmtiles`; if that asset is missing, the production workflow exits at "Get the
 base map" and never reaches the Pages deployment steps. If a same-day tag exists as both a
@@ -182,11 +187,41 @@ To go back, run the Deploy site workflow from a release tag and name the older a
 release. Beta shows the next version with `-dev` (`0.1.1-dev`), worked out from the
 latest tag, so nothing needs bumping by hand.
 
-`DATA_FORMAT` says which data the app can read, and `data/FORMAT` which it was written
-as. Bump `DATA_FORMAT` when a change to the data or the tile schema would break an older
-app, and refresh the data. Production deploys run a preflight check for missing refs and
-format files, then refuse a mismatch and leave the site as it is, so such a change needs
-both an app and a data release: the first one fails, and the second goes live.
+### Breaking data changes
+
+`DATA_FORMAT` says which pins (`data/*.geojson`) the app can read, `MAP_FORMAT` which base
+map (tile schema and layout), and `js/formats.js` is the app's copy of both
+(`node scripts/formats.mjs check` keeps them equal; CI runs it). Bump one, by exactly one,
+when a change would break an app that's already on phones.
+
+From format 2 up, everything of that kind is published under names carrying the format:
+
+| Kind | Format 1 | Format 2 |
+|---|---|---|
+| Pins | `data/bike-parking.geojson` | `data/bike-parking.v2.geojson` |
+| Base map manifest | `tiles/tiles.json` | `tiles/tiles.v2.json` |
+| Base map release file | `guelph.pmtiles` | `guelph.v2.pmtiles` |
+
+An app only ever fetches its own format's names, so a phone still running an older copy
+never reads data it can't understand. For 60 days after a bump (the date of the commit that
+changed the format file), every deploy also publishes the newest data of the previous
+format under its old names: pins from the last `data-*` release of that format, and the
+last base map file of that format. After that, older apps that never updated lose the
+data and fall back to the street map; the offline copy a phone already saved keeps working.
+
+How to ship one:
+
+1. In the pull request, bump the format file, update `js/formats.js` (and the pin names
+   in `index.html` for a pin format), and label it `breaking-data`. The commit that bumps
+   the file carries a trailer such as `Breaking-data: map 1 -> 2`. The Data formats check
+   fails without them, and fails a labelled pull request that bumps nothing.
+2. For a pin format, run `scripts/fetch-data.mjs`: it writes the new names and removes the
+   old ones. For a map format, run the Build base map tiles workflow: it uploads the file
+   under the new name (`guelph.v2.pmtiles`).
+3. Release the app and the data together. Production refuses an app whose pin format
+   doesn't match the data release, or whose map format has no file yet, and leaves the
+   site as it was, so the first release fails and the second goes live. Mention the
+   breaking change in both release notes.
 
 Every library is vendored in `vendor/`, byte-identical to its npm release, so the map
 loads nothing from third-party CDNs: Leaflet 1.9.4, Leaflet.markercluster 1.5.3,

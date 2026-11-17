@@ -7,10 +7,16 @@
 //
 // Data © OpenStreetMap contributors, available under the ODbL.
 
-import { copyFile, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { copyFile, readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
+import { readFormat, versioned } from './formats.mjs';
 
 const OUT_DIR = process.argv[2] || 'data';
+// File names carry the pin format from 2 up (scripts/formats.mjs), so an older app
+// never reads data it can't understand.
+const FORMAT = readFormat('data');
+const out = (name) => join(OUT_DIR, versioned(name, FORMAT));
+const DATA_NAMES = /^(bike-parking|guelph-boundary|cycle-routes)(\.v\d+)?\.geojson$/;
 const USER_AGENT = 'guelph-bike-parking (https://github.com/guelph-maps/guelph-bike-parking)';
 
 // OSM relation for the City of Guelph boundary.
@@ -148,7 +154,8 @@ async function fetchBoundary() {
     if (!geometry || !/Polygon$/.test(geometry.type)) throw new Error('no polygon in response');
     return geometry;
   } catch (err) {
-    const saved = await readFile(join(OUT_DIR, 'guelph-boundary.geojson'), 'utf8').catch(() => null);
+    const saved = await readFile(out('guelph-boundary.geojson'), 'utf8')
+      .catch(() => readFile(join(OUT_DIR, 'guelph-boundary.geojson'), 'utf8')).catch(() => null);
     if (saved) {
       console.warn(`City boundary unavailable, using the existing file: ${err.message}`);
       return JSON.parse(saved).features[0].geometry;
@@ -213,7 +220,7 @@ async function writeRoutes() {
       .sort((a, b) => a.properties.osm.localeCompare(b.properties.osm));
     if (!features.length) throw new Error('no routes with geometry in the response');
     await mkdir(OUT_DIR, { recursive: true });
-    await writeFile(join(OUT_DIR, 'cycle-routes.geojson'), geojsonText({
+    await writeFile(out('cycle-routes.geojson'), geojsonText({
       type: 'FeatureCollection',
       metadata: { source: 'OpenStreetMap contributors', license: 'ODbL-1.0', osm_base: json.osm3s?.timestamp_osm_base ?? null },
       features,
@@ -244,7 +251,7 @@ const geojson = {
 };
 
 await mkdir(OUT_DIR, { recursive: true });
-await writeFile(join(OUT_DIR, 'bike-parking.geojson'), geojsonText(geojson));
+await writeFile(out('bike-parking.geojson'), geojsonText(geojson));
 // Which app this data is for: the deploy refuses a mismatch (scripts/build-site.sh).
 await copyFile(new URL('../DATA_FORMAT', import.meta.url), join(OUT_DIR, 'FORMAT'));
 if (boundary) {
@@ -252,7 +259,13 @@ if (boundary) {
     type: 'FeatureCollection',
     features: [{ type: 'Feature', geometry: boundary, properties: { name: 'City of Guelph' } }],
   };
-  await writeFile(join(OUT_DIR, 'guelph-boundary.geojson'), geojsonText(boundaryGeojson));
+  await writeFile(out('guelph-boundary.geojson'), geojsonText(boundaryGeojson));
+}
+// After a format bump, the files under the old format's names go: the deploy
+// publishes old-format data from the last data release of that format.
+const current = new Set(['bike-parking.geojson', 'guelph-boundary.geojson', 'cycle-routes.geojson'].map((n) => versioned(n, FORMAT)));
+for (const f of await readdir(OUT_DIR)) {
+  if (DATA_NAMES.test(f) && !current.has(f)) await rm(join(OUT_DIR, f));
 }
 
 const spaces = features.reduce((sum, f) => sum + (f.properties.capacity || 0), 0);

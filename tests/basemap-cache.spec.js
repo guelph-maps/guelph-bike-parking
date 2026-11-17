@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
     };
   });
 
-  await page.route('**/tiles/tiles.json', route => route.fulfill({
+  await page.route('**/tiles/tiles*.json', route => route.fulfill({
     contentType: 'application/json',
     body: JSON.stringify({
       url: '/archive.pmtiles',
