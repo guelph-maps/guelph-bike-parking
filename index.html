@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Guelph Bike Parking Map: bike racks, lockers and covered parking</title>
-  <meta name="description" content="Find bike parking in Guelph, Ontario: bike racks, lockers, and covered spots downtown, at the University of Guelph, and across the city.">
+  <title>Guelph Bike Parking Map: racks, stands, and covered parking</title>
+  <meta name="description" content="Find bicycle parking in Guelph, Ontario: racks, stands, and covered parking downtown, at the University of Guelph, and across the city.">
   <meta name="theme-color" content="#0f766e">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org https://osm-guelph.goatcounter.com; connect-src 'self' https://photon.komoot.io https://guelph.bike https://osm-guelph.goatcounter.com; font-src 'self'; worker-src 'self' blob:; frame-src 'self'; manifest-src 'self'; form-action 'self'">
   <link rel="canonical" href="https://guelph.bike/">
@@ -77,15 +77,17 @@
     <div class="bp-about-inner">
       <button type="button" class="bp-about-close" aria-label="Close">&times;</button>
       <h2 id="bp-about-title">About this map</h2>
-      <p>Where to lock your bike in Guelph, Ontario: bike racks, covered and indoor parking, lockers and shelters, downtown, at the University of Guelph and across the city. Each icon shows the kind of rack, and the number shows how many bikes it holds.</p>
+      <div class="bp-release-new" hidden></div>
+      <p>Where to lock your bike in Guelph. Each icon shows the kind of rack, and the number shows how many bikes it holds.</p>
       <p class="bp-about-count">Every public bike parking spot inside city limits, from bollards to covered shelters.</p>
-      <h3>Where the data comes from</h3>
-      <p>Everything on this map comes from <a href="https://www.openstreetmap.org/about" target="_blank" rel="noopener">OpenStreetMap</a>, the free map anyone can edit. The map checks for changes every week.</p>
       <h3>Something missing or wrong?</h3>
-      <p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, or <a class="bp-about-add" href="https://www.openstreetmap.org/edit#map=17/43.54460/-80.24890" target="_blank" rel="noopener">add new parking</a>. Not a mapper? <a href="https://github.com/guelph-maps/guelph-bike-parking/issues/new?title=Bike%20parking%20correction" target="_blank" rel="noopener">Report it here</a>. Adding the number of spaces helps most.</p>
+      <p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, the free map anyone can edit. Counting the spaces helps most. You can also <a class="bp-about-add" href="https://www.openstreetmap.org/edit#map=17/43.54460/-80.24890" target="_blank" rel="noopener">add new parking</a>. Not a mapper? <a href="https://github.com/guelph-maps/guelph-bike-parking/issues/new?title=Bike%20parking%20correction" target="_blank" rel="noopener">Report it here</a>.</p>
       <h3>Using it without signal</h3>
       <div class="bp-offline-box"></div>
-      <p class="bp-about-foot">Map data &copy; OpenStreetMap contributors (ODbL). <span class="bp-about-embed"><a href="embed.html">Embed this map</a> · </span><a href="https://github.com/guelph-maps/guelph-bike-parking" target="_blank" rel="noopener">Source code</a></p>
+      <div class="bp-about-foot">
+        <p>Map data &copy; OpenStreetMap contributors (ODbL). <span class="bp-about-embed"><a href="embed.html">Embed this map</a> · </span><a href="https://github.com/guelph-maps/guelph-bike-parking" target="_blank" rel="noopener">Source code</a></p>
+        <p class="bp-release-line"></p>
+      </div>
     </div>
   </dialog>
   <noscript>This map needs JavaScript. The data is available as <a href="data/bike-parking.geojson">GeoJSON</a>.</noscript>
