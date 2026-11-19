@@ -77,6 +77,8 @@ html, body {
 .bp-roof path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .bp-roof path:first-child { stroke: #fff; stroke-width: 6; }
 .bp-roof path + path { stroke: var(--c, var(--bp-ink)); stroke-width: 3; }
+/* Partly covered group: 5 dashes over the 40-unit path, one centred on the peak. */
+.bp-roof-some path + path { stroke-dasharray: 3 6.25; }
 
 /* Several nearby spots of one type: the pin with a second one peeking out
    bottom left, clear of the badge. */
