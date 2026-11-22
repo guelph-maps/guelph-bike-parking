@@ -436,17 +436,15 @@
         h1.textContent = 'Guelph Bike Parking';
         el.insertBefore(h1, el.firstChild);
       }
-      if (location.hostname === 'beta.guelph.bike' && !h1.querySelector('.bp-beta')) {
-        h1.insertAdjacentHTML('beforeend', ' <span class="bp-beta">Beta</span>');
+      if (location.hostname === 'beta.guelph.bike' && !el.querySelector('.bp-beta')) {
+        el.insertAdjacentHTML('beforeend', '<span class="bp-beta">Beta</span>');
       }
       el.insertAdjacentHTML('beforeend',
-        '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map">i</button>' +
-        '<button type="button" class="bp-menu-btn" title="More" aria-label="More" aria-haspopup="true" aria-expanded="false">' +
-          '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>' +
-          '<span class="bp-menu-dot" hidden></span></button>' +
-        '<div class="bp-menu" hidden></div>');
-      L.DomEvent.on(el.querySelector('.bp-about-btn'), 'click', showAbout);
-      setUpMenu(el);
+        '<button type="button" class="bp-about-btn" title="About this map" aria-label="About this map" aria-haspopup="dialog">' +
+          '<span aria-hidden="true">i</span><span class="bp-about-dot" hidden></span></button>');
+      // The whole title opens About; the button is there for the keyboard.
+      el.classList.add('is-tappable');
+      el.addEventListener('click', showAbout);
     }
     L.DomEvent.disableClickPropagation(el);
     L.DomEvent.disableScrollPropagation(el);
@@ -737,11 +735,22 @@
 
   // ---- About ---------------------------------------------------------------------
   // The dialog and its wording are in index.html, where search engines can read
-  // them; only the figures and the links that depend on the view are filled in here.
+  // them; the figures, release status and links are filled in here.
   var about = document.getElementById('bp-about');
   if (about) {
     about.addEventListener('click', function (e) {
-      if (e.target === about || e.target.closest('.bp-about-close')) about.close();
+      if (e.target === about || e.target.closest('.bp-about-close')) { about.close(); return; }
+      // The offline box's own buttons handle themselves.
+      var act = e.target.closest('[data-act="update"], [data-act="clear"]');
+      if (!act) return;
+      act.disabled = true;
+      if (act.dataset.act === 'clear') {
+        act.textContent = 'Clearing…';
+        clearCacheAndReload();
+      } else {
+        act.textContent = 'Updating…';
+        location.reload(); // the new release already controls the page
+      }
     });
     var embedLink = about.querySelector('.bp-about-embed');
     if (embed && embedLink) embedLink.remove();
