@@ -4,7 +4,8 @@ A full-screen, mobile-friendly map of bicycle parking in Guelph, Ontario. Each l
 shows an icon for the type of rack (stands, wheel bender, shelter, lockers, …), a badge
 with the number of bike spaces, and a little roof when it's covered. Nearby locations
 are grouped and their spaces added up: spots of one type show as a stacked pin of that
-type, mixed ones in the colours of the types they contain. Private parking
+type, mixed ones in the colours of the types they contain, and a group gets the roof if
+any spot in it is covered. Private parking
 (`access=private`) is left off. The map can be embedded in other websites, such as
 GCAT's, with an `<iframe>`. It works with no signal: the whole city's bike map is
 saved on the device (about 3 MB).
@@ -209,6 +210,21 @@ loads nothing from third-party CDNs: Leaflet 1.9.4, Leaflet.markercluster 1.5.3,
 MapLibre GL 5.24.0 (the last line with a plain-script build; 6.x is ES modules only),
 @maplibre/maplibre-gl-leaflet 0.1.4, PMTiles 4.5.0, and Noto Sans glyphs (Latin and
 punctuation ranges) from [protomaps/basemaps-assets](https://github.com/protomaps/basemaps-assets).
+
+## Visitor stats
+
+Visits are counted with [GoatCounter](https://www.goatcounter.com/), which keeps no
+cookies and stores no personal data. The dashboard is at
+[osm-guelph.goatcounter.com](https://osm-guelph.goatcounter.com/) (sign in to see it).
+Each site counts under its own path, so filter by path to see one:
+
+| Site | Path |
+|---|---|
+| [guelph.bike](https://guelph.bike/) | `/guelph-bike-parking/` |
+| [beta.guelph.bike](https://beta.guelph.bike/) | `/beta/` |
+
+Embedded maps, local runs and test runs aren't counted. The counter is set up near the
+top of `js/map.js`.
 
 ## Offline
 
