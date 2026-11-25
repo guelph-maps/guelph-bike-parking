@@ -48,7 +48,7 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 
 - Merges to `main` update the beta site; production changes only happen from release tags.
 - A production release needs both an app tag such as `v0.1.0` and a data tag such as `data-2026-11-09`, and the workflow exits early if either is missing.
-- On release-triggered production runs, the triggering tag is selected by default for its side (`v*` sets app, `data-*` sets data), while the other side falls back to the latest matching tag unless overridden by workflow inputs.
+- On release-triggered production runs, a `v*` tag selects itself as the app; data always defaults to the newest `data-*` tag by name, even when an older data release triggered the run, so publishing an old draft can't roll data back. Workflow inputs override either side for deliberate rollbacks.
 - `DATA_FORMAT` and `data/FORMAT` must match exactly. A mismatch aborts the deploy and leaves the site on the last known-good release.
 - Beta requires `tiles/tiles.json` inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
 - `scripts/get-tiles.sh` downloads the newest matching `guelph.pmtiles` asset for the data tag; production refuses to deploy if none exists.

@@ -126,7 +126,8 @@ jobs:
           app=${APP:-}
           data=${DATA:-}
           if [[ "$REF_NAME" == v* ]] && [ -z "$app" ]; then app="$REF_NAME"; fi
-          if [[ "$REF_NAME" == data-* ]] && [ -z "$data" ]; then data="$REF_NAME"; fi
+          # Always the newest data, even when an older draft was just published, so a
+          # late publish can't roll the racks back. Use the data input to go back on purpose.
           if [ -z "$app" ]; then app=$(git tag --list 'v*' --sort=-v:refname | head -1); fi
           if [ -z "$data" ]; then data=$(git tag --list 'data-*' --sort=-v:refname | head -1); fi
           if [ -z "$app" ] || [ -z "$data" ]; then

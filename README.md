@@ -190,7 +190,8 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
   `Coehill/guelph-bike-parking-beta`.
 - **Production**, [guelph.bike](https://guelph.bike/), only changes when someone publishes
   a GitHub release. A `v*` release publishes that app tag with the latest data release,
-  and a `data-*` release publishes that data tag with the latest app release.
+  and a `data-*` release publishes the latest data release with the latest app release. Data
+  always goes to the newest tag by name, so publishing an older draft late can't roll it back.
 
 | Release | Tag | Puts on production |
 |---|---|---|
