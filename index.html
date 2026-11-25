@@ -3,11 +3,57 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Guelph Bike Parking Map</title>
-  <meta name="description" content="Map of public bicycle parking in Guelph, Ontario: rack type and number of spaces at each location.">
+  <title>Guelph Bike Parking Map: racks, stands, and covered parking</title>
+  <meta name="description" content="Find bicycle parking in Guelph, Ontario: racks, stands, and covered parking downtown, at the University of Guelph, and across the city.">
   <meta name="theme-color" content="#0f766e">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://gc.zgo.at; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tile.openstreetmap.org https://osm-guelph.goatcounter.com; connect-src 'self' https://photon.komoot.io https://guelph.bike https://osm-guelph.goatcounter.com; font-src 'self'; worker-src 'self' blob:; frame-src 'self'; manifest-src 'self'; form-action 'self'">
   <link rel="canonical" href="https://guelph.bike/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Guelph Bike Parking">
+  <meta property="og:title" content="Guelph Bike Parking Map">
+  <meta property="og:description" content="Find bike parking in Guelph, Ontario: see the rack types and their number of spaces at destinations across the city.">
+  <meta property="og:url" content="https://guelph.bike/">
+  <meta property="og:image" content="https://guelph.bike/icons/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Preview of the Guelph bike parking map with numbered, colour-coded parking locations shown on a street map">
+  <meta name="twitter:card" content="summary_large_image">
+  <!-- Read by search engines, never run: the script policy above doesn't apply to it. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebApplication",
+        "@id": "https://guelph.bike/#app",
+        "name": "Guelph Bike Parking",
+        "url": "https://guelph.bike/",
+        "description": "Map of public bike parking in Guelph, Ontario: the type of rack and the number of spaces at each location across the city.",
+        "applicationCategory": "TravelApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript",
+        "inLanguage": "en-CA",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "CAD" },
+        "image": "https://guelph.bike/icons/og-image.jpg",
+        "areaServed": { "@type": "City", "name": "Guelph", "containedInPlace": { "@type": "AdministrativeArea", "name": "Ontario, Canada" } }
+      },
+      {
+        "@type": "Dataset",
+        "@id": "https://guelph.bike/#data",
+        "name": "Bike parking in Guelph, Ontario",
+        "description": "Every public bike parking location inside Guelph city limits, with its rack type, number of spaces, operator and whether it is covered. Taken from OpenStreetMap and refreshed every week.",
+        "url": "https://guelph.bike/",
+        "keywords": ["bike parking", "bicycle parking", "bike racks", "bike lockers", "covered parking", "Guelph", "Ontario", "cycling", "OpenStreetMap"],
+        "license": "https://opendatacommons.org/licenses/odbl/1-0/",
+        "isAccessibleForFree": true,
+        "creator": { "@type": "Organization", "name": "OpenStreetMap contributors", "url": "https://www.openstreetmap.org/copyright" },
+        "spatialCoverage": { "@type": "Place", "name": "Guelph, Ontario, Canada", "geo": { "@type": "GeoShape", "box": "43.475 -80.335 43.605 -80.14" } },
+        "distribution": { "@type": "DataDownload", "encodingFormat": "application/geo+json", "contentUrl": "https://guelph.bike/data/bike-parking.geojson" }
+      }
+    ]
+  }
+  </script>
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-180.png">
@@ -21,7 +67,29 @@
 </head>
 <body>
   <main>
+  <div class="leaflet-top leaflet-left bp-title-position">
+    <div class="bp-title leaflet-control" id="bp-title">
+      <h1>Guelph Bike Parking</h1>
+    </div>
+  </div>
   <div id="map" role="application" aria-label="Map of bike parking in Guelph"></div>
+  <dialog class="bp-about" id="bp-about" aria-labelledby="bp-about-title">
+    <div class="bp-about-inner">
+      <button type="button" class="bp-about-close" aria-label="Close">&times;</button>
+      <h2 id="bp-about-title">About this map</h2>
+      <div class="bp-release-new" hidden></div>
+      <p>Where to lock your bike in Guelph. Each icon shows the kind of rack, and the number shows how many bikes it holds.</p>
+      <p class="bp-about-count">Public bike racks and bicycle parking in Guelph, from bollards to covered shelters.</p>
+      <h3>Something missing or wrong?</h3>
+      <p>Tap the spot and choose <b>Details / fix</b> to correct it in OpenStreetMap, the free map anyone can edit. Counting the spaces helps most. You can also <a class="bp-about-add" href="https://www.openstreetmap.org/edit#map=17/43.54460/-80.24890" target="_blank" rel="noopener">add new parking</a>. Not a mapper? <a href="https://github.com/guelph-maps/guelph-bike-parking/issues/new?title=Bike%20parking%20correction" target="_blank" rel="noopener">Report it here</a>.</p>
+      <h3>Using it without signal</h3>
+      <div class="bp-offline-box"></div>
+      <div class="bp-about-foot">
+        <p>Map data &copy; OpenStreetMap contributors (ODbL). <span class="bp-about-embed"><a href="embed.html">Embed this map</a> · </span><a href="https://github.com/guelph-maps/guelph-bike-parking" target="_blank" rel="noopener">Source code</a></p>
+        <p class="bp-release-line"></p>
+      </div>
+    </div>
+  </dialog>
   <noscript>This map needs JavaScript. The data is available as <a href="data/bike-parking.geojson">GeoJSON</a>.</noscript>
   </main>
   <script src="vendor/leaflet/leaflet.js"></script>
