@@ -27,4 +27,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install webkit
+      # tests/old-drafts.spec.js runs the release filter with jq.
+      - run: command -v jq || (apt-get update && apt-get install -y --no-install-recommends jq)
       - run: npm run test:webkit
