@@ -53,7 +53,7 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - Beta requires `tiles/tiles.json` inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
 - `scripts/get-tiles.sh` downloads the newest matching `guelph.pmtiles` asset for the data tag; production refuses to deploy if none exists.
 - Weekly drafts pin the data tag to the build commit, so publishing releases out of order cannot change the parking data selected by later app releases.
-- Weekly tile builds are safe for phones because `js/basemap.js` replaces a saved base map once it is 30 days behind, when the site rolls back, or on Android Wi-Fi. Raising the cadence further, or shipping fresh tiles to production, relies on that client rule being in the live app release.
+- Weekly tile builds are safe for phones because `js/basemap.js` replaces a saved base map once it is 30 days behind, when the site rolls back, or on Android Wi-Fi. Publish weekly drafts only after an app release newer than v0.1.1 is live; older apps re-download 3 MB on every file change.
 - Beta publish exits early when either deploy secret is missing or when `BETA_DEPLOY_KEY` is unencrypted.
 
 ## Gotchas and non-obvious behaviour
@@ -62,5 +62,5 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - A successful `ssh-add` is not enough for beta deploy success: GitHub still rejects pushes if the public deploy key in `Coehill/guelph-bike-parking-beta` does not match the private key secret or lacks write access.
 - The beta deploy is intentionally a preview of `main`, not a production release; it has no special release tag and is not meant to be a stable live environment.
 - Data-only changes remain in git and do not trigger a new app cache name; the service worker version stamp is derived from the app ref, so app releases are the only thing that forces a fresh app download.
-- Production fails early if the selected `data-*` release lacks `guelph.pmtiles` in its asset list. The release pipeline expects a non-draft `data-*` tag with that asset, so any new base-map release must upload the file before publishing the tag.
-- Duplicate same-day `data-*` tags are a release-time trap: if a stale draft and a published release share the same tag name, the workflow can resolve the wrong one. In that case, upload the asset to the published release and remove the stale draft so future deploys stay deterministic.
+- Production uses the newest published `guelph.pmtiles` up to the selected data tag and fails early if there is none. The weekly build never uploads to a published release: scheduled runs warn and skip, and manual runs fail.
+- Each deploy keeps the live map file under the name its `tiles.json` gives (`scripts/get-live-tiles.sh` → `build/previous/`), so pages still streaming it keep their tiles.

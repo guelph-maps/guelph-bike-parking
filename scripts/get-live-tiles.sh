@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Downloads the base map a site is serving right now into build/previous.pmtiles,
-# so the next deploy can keep it next to the new one (scripts/publish-tiles.mjs).
+# Downloads the base map a site is serving right now into build/previous/, under the
+# name its tiles.json gives, so the next deploy can keep it next to the new one
+# (scripts/publish-tiles.mjs). Pages already streaming it ask for that exact name.
 # A page that's streaming tiles holds on to the file it started with; if that file
 # vanished on deploy, the rest of its tiles would 404 until a reload. Each deploy
 # keeps only the live file and the new one, so an old file stays until the next
@@ -12,8 +13,8 @@
 set -uo pipefail
 
 site=${1%/}
-rm -f build/previous.pmtiles
-mkdir -p build
+rm -rf build/previous
+mkdir -p build/previous
 
 info=$(curl -sSfL --max-time 30 "$site/tiles/tiles.json") || {
   echo "::warning title=No live base map::Couldn't read $site/tiles/tiles.json; deploying without the previous file."
@@ -29,15 +30,16 @@ if [ -z "${url:-}" ]; then
 fi
 
 # No --compressed: Pages gzips .pmtiles, and the copy must be the plain bytes.
-if ! curl -sSfL --max-time 120 -o build/previous.pmtiles "$site/tiles/$url"; then
+file="build/previous/$url"
+if ! curl -sSfL --max-time 120 -o "$file" "$site/tiles/$url"; then
   echo "::warning title=No live base map::Couldn't download $site/tiles/$url."
-  rm -f build/previous.pmtiles
+  rm -f "$file"
   exit 0
 fi
-got=$(wc -c < build/previous.pmtiles)
+got=$(wc -c < "$file")
 if [ "$bytes" != 0 ] && [ "$got" != "$bytes" ]; then
   echo "::warning title=No live base map::$url is $got bytes, tiles.json says $bytes."
-  rm -f build/previous.pmtiles
+  rm -f "$file"
   exit 0
 fi
 echo "Keeping the live $url ($got bytes) next to the new file"

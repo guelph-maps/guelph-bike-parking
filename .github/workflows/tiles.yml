@@ -65,21 +65,25 @@ jobs:
         run: |
           tag="data-$(date -u +%F)"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            # Only a person may change what an already published release puts live.
+            # Never change the map file of a release that's already published.
             draft=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
-            if [ "$draft" != true ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then
-              echo "::warning title=Release already published::$tag is published; next week's build will try again."
-              exit 0
+            if [ "$draft" != true ]; then
+              if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+                echo "::warning title=Release already published::$tag is published; next week's build will try again."
+                exit 0
+              fi
+              echo "::error title=Release already published::$tag is published, and its map file stays as it is. Run this again tomorrow."
+              exit 1
             fi
             gh release upload "$tag" build/guelph.pmtiles --repo "$GITHUB_REPOSITORY" --clobber
-            if [ "$draft" = true ]; then
-              gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
-            fi
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
           else
             # Pin the data to this build. If releases are published out of order,
             # a later app release must still select data in tag-name order.
             gh release create "$tag" build/guelph.pmtiles --draft --target "$GITHUB_SHA" --title "$tag" \
-              --notes 'New base map, with the map data on main at the time. Publishing this puts both live.'
+              --notes 'New base map, with the map data on main at the time. Publishing this puts both live.
+
+          Publish this only once an app release newer than v0.1.1 is live. Phones on v0.1.1 or older download the whole 3 MB map again every time the file changes.'
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx 'guelph.pmtiles'
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

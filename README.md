@@ -107,8 +107,9 @@ custom schema in `scripts/tiles/schema.yml`, which keeps only what the style dra
 or by hand (Actions → Build base map tiles). A week whose tiles match the last file's
 (`scripts/tiles-changed.mjs`) publishes nothing. Otherwise the result is a draft data
 release holding `guelph.pmtiles`, replacing any older such draft: beta uses it straight
-away, and publishing the draft pushes it to production with the parking data from the
-build's commit. A data release without a tile file keeps the one before it.
+away, and publishing the draft puts it on production. Production always takes the newest
+data release by name, with the parking data from its build's commit, so publishing an
+older draft late changes nothing. A data release without a tile file keeps the one before it.
 `scripts/publish-tiles.mjs` copies the file into the site
 under a content-hashed name and writes `tiles/tiles.json`. Each deploy also keeps the
 file the site was serving until then (`scripts/get-live-tiles.sh`), so a page that's
@@ -196,15 +197,13 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
 | Release | Tag | Puts on production |
 |---|---|---|
 | App | `v0.1.0` | the app files at that tag |
-| Data | `data-2026-11-09` | `data/` at that tag, and `guelph.pmtiles` if the release has one |
+| Data | `data-2026-11-09` | `data/` at the newest data release, and the newest published `guelph.pmtiles` up to it |
 
-Release checklist for the bike base map: when a new `data-*` release carries a new
-`guelph.pmtiles` file, upload that asset to the published release before publishing it.
-`./scripts/get-tiles.sh` only picks up non-draft `data-*` releases whose asset list includes
-`guelph.pmtiles`; if that asset is missing, the production workflow exits at "Get the
-base map" and never reaches the Pages deployment steps. If a same-day tag exists as both a
-stale draft and a published release, attach the asset to the published release and delete
-or ignore the stale draft so the workflow always resolves the same tag deterministically.
+Publish weekly base map drafts only once an app release newer than v0.1.1 is live. Phones
+on v0.1.1 or older download the whole 3 MB map again whenever the file changes.
+
+The production deploy fails at "Get the base map" if no published data release up to the
+chosen one has `guelph.pmtiles`. The weekly build never changes the file on a published release.
 
 To go back, run the Deploy site workflow from a release tag and name the older app or data
 release. Beta shows the next version with `-dev` (`0.1.1-dev`), worked out from the
