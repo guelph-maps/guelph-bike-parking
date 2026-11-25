@@ -72,12 +72,14 @@ jobs:
               exit 0
             fi
             gh release upload "$tag" build/guelph.pmtiles --repo "$GITHUB_REPOSITORY" --clobber
+            if [ "$draft" = true ]; then
+              gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
+            fi
           else
-            # Targeting the branch, not this commit: a draft gets its tag when it's
-            # published, so the parking data that goes live with these tiles is
-            # main's at that moment, including a data refresh merged in between.
-            gh release create "$tag" build/guelph.pmtiles --draft --target main --title "$tag" \
-              --notes 'New base map. Publishing this puts it live with the map data on main at that moment.'
+            # Pin the data to this build. If releases are published out of order,
+            # a later app release must still select data in tag-name order.
+            gh release create "$tag" build/guelph.pmtiles --draft --target "$GITHUB_SHA" --title "$tag" \
+              --notes 'New base map, with the map data on main at the time. Publishing this puts both live.'
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx 'guelph.pmtiles'
           echo "tag=$tag" >> "$GITHUB_OUTPUT"

@@ -808,7 +808,14 @@
       var savedOn = m
         ? 'The map saved on this device is from ' + new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) + '.'
         : 'A saved map is on this device.';
-      html = '<p>' + savedOn + ' A newer one is ready' + (autoSave ? ', and yours updates by itself once it’s a month behind.' : '.') +
+      var savedDate = Date.parse(s.saved && s.saved.date);
+      var currentDate = Date.parse(s.info && s.info.date);
+      var available = 'A different one is ready.';
+      if (savedDate === savedDate && currentDate === currentDate) {
+        if (currentDate < savedDate) available = 'The site has gone back to an older map.';
+        else if (currentDate > savedDate) available = 'A newer one is ready.';
+      }
+      html = '<p>' + savedOn + ' ' + available + (autoSave ? ' Yours updates by itself when needed.' : '') +
         safari + '</p><button type="button" data-act="save">Update saved map' + size + '</button>';
     } else if (s.status === 'online') {
       html = '<p>Save the whole Guelph map on this device so it works with no signal. Parking data is kept either way.' + safari + '</p>' +

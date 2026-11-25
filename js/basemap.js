@@ -23,7 +23,8 @@
     var c = navigator.connection;
     if (c && (c.type === 'wifi' || c.type === 'ethernet')) return true;
     var behind = (Date.parse(info.date) - Date.parse(saved.date)) / 864e5;
-    return !(behind < STALE_DAYS); // a missing date counts as old
+    if (!(behind >= 0)) return true; // the site went back, or a date is missing
+    return behind >= STALE_DAYS;
   }
 
   var listeners = [];

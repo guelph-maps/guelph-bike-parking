@@ -52,7 +52,8 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - `DATA_FORMAT` and `data/FORMAT` must match exactly. A mismatch aborts the deploy and leaves the site on the last known-good release.
 - Beta requires `tiles/tiles.json` inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
 - `scripts/get-tiles.sh` downloads the newest matching `guelph.pmtiles` asset for the data tag; production refuses to deploy if none exists.
-- Weekly tile builds are safe for phones because `js/basemap.js` only replaces a saved base map once it is 30 days behind (or on Android Wi-Fi). Raising the cadence further, or shipping fresh tiles to production, relies on that client rule being in the live app release.
+- Weekly drafts pin the data tag to the build commit, so publishing releases out of order cannot change the parking data selected by later app releases.
+- Weekly tile builds are safe for phones because `js/basemap.js` replaces a saved base map once it is 30 days behind, when the site rolls back, or on Android Wi-Fi. Raising the cadence further, or shipping fresh tiles to production, relies on that client rule being in the live app release.
 - Beta publish exits early when either deploy secret is missing or when `BETA_DEPLOY_KEY` is unencrypted.
 
 ## Gotchas and non-obvious behaviour

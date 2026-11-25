@@ -114,6 +114,11 @@ test('replaces a saved copy that is a month behind', async ({ page }) => {
   expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
 });
 
+test('replaces a saved copy that is newer than the site', async ({ page }) => {
+  const state = await startWithSavedCopy(page, '2026-11-18');
+  expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
+});
+
 test('replaces a recent saved copy on Wi-Fi', async ({ page }) => {
   const state = await startWithSavedCopy(page, '2026-11-04', { type: 'wifi' });
   expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
