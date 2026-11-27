@@ -10,6 +10,8 @@
 // and a deploy that only refreshes them isn't a release. __BUILT__ becomes the
 // day that version was released (YYYY-MM-DD), shown next to it in the ⋮ menu.
 
+importScripts('js/formats.js'); // which pin and map formats this release reads
+
 var BUILD = '__BUILD__';
 var BUILT = '__BUILT__';
 var APP_CACHE = 'app-' + BUILD;
@@ -23,6 +25,8 @@ var APP_FILES = [
   'index.html',
   'css/map.css',
   'js/types.js',
+  'js/formats.js',
+  'js/gbt.js',
   'js/basemap.js',
   'js/style.js',
   'js/map.js',
@@ -44,7 +48,9 @@ var APP_FILES = [
     return 'vendor/fonts/Noto Sans ' + weight + '/' + range + '.pbf';
   }));
 }, []));
-var DATA_FILES = ['data/bike-parking.geojson', 'data/guelph-boundary.geojson', 'data/cycle-routes.geojson'];
+var DATA_FILES = ['data/bike-parking.geojson', 'data/guelph-boundary.geojson', 'data/cycle-routes.geojson']
+  .map(function (u) { return BikeFormats.versioned(u, 'data'); });
+var TILES_INFO = BikeFormats.versioned('tiles/tiles.json', 'map');
 
 var TILE_HOSTS = /(^|\.)(tile\.openstreetmap\.org)$/;
 
@@ -59,7 +65,7 @@ self.addEventListener('install', function (event) {
         return cache.match(u).then(function (hit) { return hit || cache.add(new Request(u, { cache: 'reload' })); });
       }).concat(
         // Which bike map file is current; optional, so a missing one doesn't block installing.
-        cache.add(new Request('tiles/tiles.json', { cache: 'reload' })).catch(function () {})
+        cache.add(new Request(TILES_INFO, { cache: 'reload' })).catch(function () {})
       ));
     })
   ]).then(function () { return self.skipWaiting(); }));
@@ -92,7 +98,7 @@ self.addEventListener('fetch', function (event) {
   if (url.origin !== self.location.origin) return; // search etc. go straight to the network
 
   if (/\.pmtiles$/.test(url.pathname)) return; // range requests; js/basemap.js keeps the file
-  if (/\/data\/[^/]+\.geojson$|\/tiles\/tiles\.json$/.test(url.pathname)) {
+  if (/\/data\/[^/]+\.geojson$|\/tiles\/tiles(\.v\d+)?\.json$/.test(url.pathname)) {
     event.respondWith(staleWhileRevalidate(event, req));
     return;
   }

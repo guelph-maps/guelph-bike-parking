@@ -2,9 +2,10 @@
   'use strict';
 
   var T = window.BIKE_PARKING_TYPES;
-  var DATA_URL = 'data/bike-parking.geojson';
-  var BOUNDARY_URL = 'data/guelph-boundary.geojson';
-  var ROUTES_URL = 'data/cycle-routes.geojson';
+  // Named for the pin format this app reads (js/formats.js).
+  var DATA_URL = BikeFormats.versioned('data/bike-parking.geojson', 'data');
+  var BOUNDARY_URL = BikeFormats.versioned('data/guelph-boundary.geojson', 'data');
+  var ROUTES_URL = BikeFormats.versioned('data/cycle-routes.geojson', 'data');
   var REPO_URL = 'https://github.com/guelph-maps/guelph-bike-parking';
   var SEARCH_BBOX = '-80.335,43.475,-80.140,43.605'; // west,south,east,north
   var GUELPH = [43.5448, -80.2482];
@@ -844,7 +845,10 @@
   // The service worker keeps the app, the data and viewed map tiles, so the map
   // still opens with no signal. Tell people when they're seeing a saved copy.
   var sw = 'serviceWorker' in navigator && location.protocol !== 'file:' ? navigator.serviceWorker : null;
-  var swReg = sw ? sw.register('sw.js').catch(function () { return null; /* the map works without it */ }) : Promise.resolve(null);
+  // updateViaCache 'none': the update check also refetches the scripts sw.js imports
+  // (js/formats.js) past the HTTP cache, so a new release's worker never imports a
+  // stale copy and precaches the wrong format's data.
+  var swReg = sw ? sw.register('sw.js', { updateViaCache: 'none' }).catch(function () { return null; /* the map works without it */ }) : Promise.resolve(null);
 
   var offlineNote = L.DomUtil.create('div', 'bp-offline', map.getContainer());
   offlineNote.setAttribute('role', 'status');

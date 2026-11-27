@@ -7,39 +7,66 @@
 # keeps only the live file and the new one, so an old file stays until the next
 # new map, about a week with the weekly build.
 #
-#   scripts/get-live-tiles.sh https://beta.guelph.bike
+# After a map format bump the site serves one file per format, each named by its own
+# manifest (tiles.json, tiles.v2.json, ...; scripts/formats.mjs), and each is kept.
+#
+#   scripts/get-live-tiles.sh https://beta.guelph.bike [app-ref]
+#
+# Formats up to the newer of the app ref's (default: the working tree's) and the
+# working tree's are looked for: production runs from the release that triggered
+# it, which may not be the app it deploys, and on a rollback the live site may
+# serve a newer format than the app going up.
 #
 # Anything that goes wrong only means no previous file: a warning, not a failure.
 set -uo pipefail
 
 site=${1%/}
+app_ref=${2:-}
 rm -rf build/previous
 mkdir -p build/previous
 
-info=$(curl -sSfL --max-time 30 "$site/tiles/tiles.json") || {
-  echo "::warning title=No live base map::Couldn't read $site/tiles/tiles.json; deploying without the previous file."
-  exit 0
-}
-read -r url bytes < <(node -e '
-  const i = JSON.parse(process.argv[1]);
-  if (/^guelph-[0-9a-f]+\.pmtiles$/.test(i.url)) console.log(i.url, i.bytes || 0);
-' "$info")
-if [ -z "${url:-}" ]; then
-  echo "::warning title=No live base map::$site/tiles/tiles.json names no tile file."
-  exit 0
-fi
+current=$(node scripts/formats.mjs format map "$app_ref" 2>/dev/null || echo 1)
+here=$(node scripts/formats.mjs format map 2>/dev/null || echo 1)
+newest=$(( here > current ? here : current ))
 
-# No --compressed: Pages gzips .pmtiles, and the copy must be the plain bytes.
-file="build/previous/$url"
-if ! curl -sSfL --max-time 120 -o "$file" "$site/tiles/$url"; then
-  echo "::warning title=No live base map::Couldn't download $site/tiles/$url."
-  rm -f "$file"
-  exit 0
-fi
-got=$(wc -c < "$file")
-if [ "$bytes" != 0 ] && [ "$got" != "$bytes" ]; then
-  echo "::warning title=No live base map::$url is $got bytes, tiles.json says $bytes."
-  rm -f "$file"
-  exit 0
-fi
-echo "Keeping the live $url ($got bytes) next to the new file"
+# keep <manifest> <warn>: saves the file that manifest names. Only the current
+# format's manifest warns when it's missing; an older one may simply have ended.
+keep() {
+  local manifest=$1 warn=$2 info url bytes file got
+  info=$(curl -sSfL --max-time 30 "$site/tiles/$manifest") || {
+    [ "$warn" = yes ] && echo "::warning title=No live base map::Couldn't read $site/tiles/$manifest; deploying without the previous file."
+    return 0
+  }
+  read -r url bytes < <(node -e '
+    const i = JSON.parse(process.argv[1]);
+    if (/^guelph-[0-9a-f]+\.pmtiles$/.test(i.url)) console.log(i.url, i.bytes || 0);
+  ' "$info")
+  if [ -z "${url:-}" ]; then
+    echo "::warning title=No live base map::$site/tiles/$manifest names no tile file."
+    return 0
+  fi
+
+  # No --compressed: Pages gzips .pmtiles, and the copy must be the plain bytes.
+  file="build/previous/$url"
+  if ! curl -sSfL --max-time 120 -o "$file" "$site/tiles/$url"; then
+    echo "::warning title=No live base map::Couldn't download $site/tiles/$url."
+    rm -f "$file"
+    return 0
+  fi
+  got=$(wc -c < "$file")
+  if [ "$bytes" != 0 ] && [ "$got" != "$bytes" ]; then
+    echo "::warning title=No live base map::$url is $got bytes, $manifest says $bytes."
+    rm -f "$file"
+    return 0
+  fi
+  echo "Keeping the live $url ($got bytes, from $manifest) next to the new file"
+}
+
+for format in $(seq 1 "$newest"); do
+  manifest=tiles.json
+  [ "$format" -gt 1 ] && manifest="tiles.v$format.json"
+  warn=no
+  [ "$format" = "$current" ] && warn=yes
+  keep "$manifest" "$warn"
+done
+exit 0

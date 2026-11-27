@@ -114,7 +114,7 @@ examples:
     tags: { highway: footway, footway: sidewalk }
   output: []
 
-- name: private driveway is bicycle=no at z14
+- name: private driveway is bicycle=no, stored at z13 and drawn from z14
   input:
     source: osm
     geometry: line
@@ -122,8 +122,111 @@ examples:
   output:
     layer: transportation
     geometry: line
-    min_zoom: 14
-    tags: { class: service, bicycle: "no" }
+    min_zoom: 13
+    tags: { class: service, bicycle: "no", _minzoom: 14 }
+
+- name: sidewalk where bikes are allowed is not held back to z14
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: footway, footway: sidewalk, bicycle: "yes" }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    tags: { class: footway, bicycle: "yes", _minzoom: null }
+
+# _minzoom: 14 goes exactly where the min_zoom overrides would have said 14 before the
+# file stopped at 13: tagged close-up highways that no earlier override lifts.
+- name: steps are stored at z13 and drawn from z14, even where bikes are allowed
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: steps, bicycle: "yes" }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 13
+    tags: { class: steps, _minzoom: 14 }
+
+- name: parking aisle where bikes are allowed is still drawn from z14
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: service, service: parking_aisle, bicycle: "yes" }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 13
+    tags: { class: service, _minzoom: 14 }
+
+- name: residential street tagged service=driveway is a street, not held back
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: residential, service: driveway }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    tags: { class: minor, _minzoom: null }
+
+- name: a railway line that also carries highway=steps is drawn from z10, not held back
+  input:
+    source: osm
+    geometry: line
+    tags: { railway: rail, highway: steps }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 10
+    tags: { _minzoom: null }
+
+- name: secondary road with a service tag shows from z10
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: secondary, service: drive-through }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 10
+    tags: { class: secondary, _minzoom: null }
+
+- name: cycleway across a road (footway=crossing) is not held back
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: cycleway, footway: crossing }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    tags: { class: cycleway, _minzoom: null }
+
+- name: path tagged as a sidewalk is drawn from z14
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: path, footway: sidewalk }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 13
+    tags: { class: path, _minzoom: 14 }
+
+- name: big named park is labelled from z12, not held back
+  input:
+    source: osm
+    geometry: polygon
+    tags: { leisure: park, name: Exhibition Park }
+  output:
+  - layer: landuse
+    geometry: polygon
+  - layer: poi
+    geometry: point
+    min_zoom: 12
+    tags: { class: park, name: Exhibition Park, _minzoom: null }
 
 - name: main rail line
   input:

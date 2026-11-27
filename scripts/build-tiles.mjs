@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Builds the cycling base map tiles for Guelph (build/guelph.pmtiles) from an
+// Builds the cycling base map tiles for Guelph (build/guelph.pmtiles, or
+// build/guelph.v2.pmtiles from map format 2: scripts/formats.mjs) from an
 // OpenStreetMap extract with Planetiler and the custom schema in scripts/tiles/.
 //
 //   node scripts/build-tiles.mjs [input.osm.pbf] [-- extra planetiler args]
@@ -18,24 +19,35 @@ import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cullPmtiles, outerRings } from './tiles/cull-pmtiles.mjs';
+import { readFormat, tilesAsset, versioned } from './formats.mjs';
+import { toGbtArchive } from './tiles/own/to-gbt.mjs';
+import { trimPmtiles, RECOMMENDED } from './tiles/own/trim.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'build');
-const OUTPUT = join(BUILD, 'guelph.pmtiles');
+const OUTPUT = resolve(process.env.TILE_OUTPUT || join(BUILD, tilesAsset(readFormat('map'))));
 const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 
 // Each zoom level covers the city boundary (saved by fetch-data.mjs) grown by
 // its own margin. Every level is a full new set of tiles, so the close-up levels
-// are most of the file: city + 2 km at level 14 is 1.16 MB, and 1 km would save
-// only 0.07 MB while showing blank squares at the edge on a laptop. Zoomed out,
-// a view spans far more ground, so the coarse levels reach further: with these
-// margins a phone sees no blank square from any zoom centred on the city or its
-// edge. Level 10 supports zooming out to 11.5 (minZoom in js/map.js), so narrow
-// phones and small embeds can fit the whole city. The file is about 2.38 MB; one 2 km
-// margin for levels 10-14 was 2.00 MB but left a blank corner zoomed out, and the
-// old 5 km box was 3.07 MB. Level 11 at 6 km saves 0.06 MB but blanks phone edges.
-const CITY = join(ROOT, 'data', 'guelph-boundary.geojson');
-const MARGIN_KM = { 10: 8, 11: 8, 12: 6, 13: 4, 14: 2 };
+// are most of the file. Zoomed out, a view spans far more ground, so the coarse
+// levels reach further: with these margins a phone sees no blank square from any
+// zoom centred on the city or its edge. Level 10 supports zooming out to 11.5
+// (minZoom in js/map.js), so narrow phones and small embeds can fit the whole city.
+// The file is 1.28 MB (2026-11-24 extract; level 13 is 0.87 MB of it). Measured on
+// the format-1 file, whose top level was 14: city + 2 km at level 14 was 1.16 MB and
+// 1 km would have saved only 0.07 MB while showing blank squares at the edge on a
+// laptop; the file was about 2.38 MB, one 2 km margin for levels 10-14 2.00 MB but
+// with a blank corner zoomed out, and the old 5 km box 3.07 MB. Level 11 at 6 km
+// saved 0.06 MB but blanked phone edges.
+// Named for the working tree's pin format, as fetch-data.mjs writes it.
+const CITY = join(ROOT, 'data', versioned('guelph-boundary.geojson', readFormat('data')));
+// Level 13 is the file's top level (the browser cuts deeper tiles from it, see
+// js/gbt.js), so it covers the close-up views level 14 used to.
+// TILE_MARGINS_KM (JSON, e.g. {"10":0,"11":0,"12":0,"13":0}) and TILE_OUTPUT override
+// these for experiments, such as the hard cut on the city border used to compare sizes.
+const MARGIN_KM = process.env.TILE_MARGINS_KM ? JSON.parse(process.env.TILE_MARGINS_KM) : { 10: 8, 11: 8, 12: 6, 13: 4 };
+const TOP = 13;
 const UNCUT = join(BUILD, 'guelph-uncut.pmtiles');
 
 function fail(message) {
@@ -97,6 +109,10 @@ const args = [
   `--osm_path=${input}`,
   `--output=${UNCUT}`,
   `--bounds=${bounds.join(',')}`,
+  // The top level gets the schema's *_at_max_zoom settings only when Planetiler
+  // is told it renders no deeper (the schema's args alone stop the output at 13).
+  `--maxzoom=${TOP}`,
+  `--render_maxzoom=${TOP}`,
   // Keep temp files and any downloads out of the repo's data/ folder.
   `--tmpdir=${tmpDir}`,
   `--download_dir=${join(BUILD, 'sources')}`,
@@ -116,8 +132,19 @@ if (run.status !== 0) fail(`planetiler exited with ${run.status ?? run.signal} a
 if (!existsSync(UNCUT)) fail(`planetiler finished but ${UNCUT} is missing`);
 
 const margins = Object.fromEntries(Object.entries(MARGIN_KM).map(([z, km]) => [z, km * 1000]));
-const kept = cullPmtiles(UNCUT, OUTPUT, JSON.parse(readFileSync(CITY, 'utf8')), margins);
+const CUT = join(BUILD, 'guelph-mvt.pmtiles');
+const kept = cullPmtiles(UNCUT, CUT, JSON.parse(readFileSync(CITY, 'utf8')), margins);
 rmSync(UNCUT, { force: true });
+// Drop what js/style.js never draws, merge features it can't tell apart, trim each
+// feature's margin beyond the tile edge to what its drawn width needs, and put the
+// zoomed-out levels on a coarser grid (scripts/tiles/own/trim.mjs). Re-run on style changes.
+const TRIMMED = join(BUILD, 'guelph-trim.pmtiles');
+trimPmtiles(CUT, TRIMMED, RECOMMENDED);
+rmSync(CUT, { force: true });
+// Our own tile layout: same features, columns instead of MVT, no feature ids.
+const gbt = toGbtArchive(TRIMMED, OUTPUT);
+rmSync(TRIMMED, { force: true });
+for (const [z, s] of Object.entries(gbt.levels)) kept[z].bytes = s;
 for (const [z, s] of Object.entries(kept)) {
   console.log(`build-tiles: level ${z}: city + ${MARGIN_KM[z]} km, ${s.tiles} tiles, ${(s.bytes / 1e6).toFixed(2)} MB`);
 }
