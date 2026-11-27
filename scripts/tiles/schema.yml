@@ -212,6 +212,8 @@ layers:
         __all__:
           highway: [ path, footway, bridleway, track ]
           bicycle: [ designated, "yes", permissive ]
+        # A main railway line is lifted to 10 above, whatever highway tag it also has.
+        railway: rail
     - key: class
       value:
       - if: { highway: [ motorway, motorway_link ] }

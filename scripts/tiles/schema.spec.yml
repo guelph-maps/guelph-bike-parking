@@ -171,6 +171,17 @@ examples:
     min_zoom: 12
     tags: { class: minor, _minzoom: null }
 
+- name: a railway line that also carries highway=steps is drawn from z10, not held back
+  input:
+    source: osm
+    geometry: line
+    tags: { railway: rail, highway: steps }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 10
+    tags: { _minzoom: null }
+
 - name: secondary road with a service tag shows from z10
   input:
     source: osm
