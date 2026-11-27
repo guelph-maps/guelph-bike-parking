@@ -54,9 +54,7 @@
     zoomControl: false,
     scrollWheelZoom: !embed,
     zoomSnap: 0.5,
-    // A phone opens on the whole city at 12. Further out would need a coarser
-    // set of base map tiles (scripts/build-tiles.mjs), mostly countryside.
-    minZoom: 12,
+    minZoom: 11.5,
     maxZoom: 19
   });
   // Embedded maps shouldn't hijack page scrolling until someone interacts with them.

@@ -10,6 +10,17 @@ test('keeps the single page heading outside the application map', async ({ page 
   await expect(page.locator('#bp-title .bp-about-btn')).toBeVisible();
 });
 
+test('allows zooming out to 11.5, but no further', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 667 });
+  await page.goto('/index.html?legend=closed&lat=43.5448&lng=-80.2482&zoom=13');
+  const zoomOut = page.locator('.leaflet-control-zoom-out');
+  await zoomOut.click();
+  await expect(page).toHaveURL(/#12\//);
+  await zoomOut.click();
+  await expect(page).toHaveURL(/#11\.5\//);
+  await expect(zoomOut).toHaveClass(/leaflet-disabled/);
+});
+
 test('opens the static About dialog from the title and keyboard button', async ({ page }) => {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));

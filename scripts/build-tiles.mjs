@@ -30,13 +30,12 @@ const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 // only 0.07 MB while showing blank squares at the edge on a laptop. Zoomed out,
 // a view spans far more ground, so the coarse levels reach further: with these
 // margins a phone sees no blank square from any zoom centred on the city or its
-// edge. Level 11 draws the map from zoom 12, where a phone opens; level 10 would
-// only serve zooming out past the city, which the map no longer allows
-// (minZoom in js/map.js), so it is left out. The file is 2.20 MB; one 2 km
+// edge. Level 10 supports zooming out to 11.5 (minZoom in js/map.js), so narrow
+// phones and small embeds can fit the whole city. The file is about 2.38 MB; one 2 km
 // margin for levels 10-14 was 2.00 MB but left a blank corner zoomed out, and the
 // old 5 km box was 3.07 MB. Level 11 at 6 km saves 0.06 MB but blanks phone edges.
 const CITY = join(ROOT, 'data', 'guelph-boundary.geojson');
-const MARGIN_KM = { 11: 8, 12: 6, 13: 4, 14: 2 };
+const MARGIN_KM = { 10: 8, 11: 8, 12: 6, 13: 4, 14: 2 };
 const UNCUT = join(BUILD, 'guelph-uncut.pmtiles');
 
 function fail(message) {
