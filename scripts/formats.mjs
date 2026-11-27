@@ -57,34 +57,45 @@ export const tilesAsset = (format) => versioned('guelph.pmtiles', format);
 // The previous format, while it's still to be published: for OVERLAP_DAYS from the
 // day the new format was first released, so older apps get the full time however
 // long the bump waited on main. That's the first v* tag, in version order, whose
-// format file holds the new number. Before any release has it (beta) it's always
-// published.
+// format file holds the new number and whose release was published. Before any
+// release has it (beta) it's always published.
 export function overlap(appRef, kind, today = new Date().toISOString().slice(0, 10)) {
   const format = readFormat(kind, appRef);
   if (format <= 1) return null;
-  const tag = firstRelease(kind, format);
-  if (!tag) return format - 1;
-  const age = (Date.parse(today) - Date.parse(releaseDay(tag))) / 86400000;
-  return age <= OVERLAP_DAYS ? format - 1 : null;
+  const day = firstReleaseDay(kind, format);
+  if (!day) return format - 1;
+  const age = (Date.parse(today) - Date.parse(day)) / 86400000;
+  // A date that can't be read keeps the old format published rather than ending it.
+  return age > OVERLAP_DAYS ? null : format - 1;
 }
 
-function firstRelease(kind, format) {
+// A tag whose release was never published (a draft, or a tag abandoned before its
+// release) doesn't start the clock. Where gh can't answer at all (no token, offline),
+// the tag's own date stands in: a release made on GitHub has a lightweight tag, dated
+// by its commit, which can be earlier. Only the date ever reaches stdout.
+function firstReleaseDay(kind, format) {
   const tags = git(['tag', '--list', 'v[0-9]*', '--sort=v:refname']).split('\n').filter(Boolean);
   const holds = (tag) => { try { return readFormat(kind, tag) === format; } catch { return false; } };
-  return tags.find(holds) || null;
+  for (const tag of tags.filter(holds)) {
+    const day = publishedDay(tag);
+    if (day === undefined) return git(['for-each-ref', '--format=%(creatordate:short)', `refs/tags/${tag}`]).trim();
+    if (day) return day;
+  }
+  return null;
 }
 
-// The day its GitHub release was published, where gh can say (deploys have GH_TOKEN),
-// else the tag's own date: a release made on GitHub has a lightweight tag, dated by
-// its commit, which can be earlier. Either way only the date reaches stdout.
-function releaseDay(tag) {
+// "YYYY-MM-DD" when the tag's GitHub release is published, null when it has none or
+// it's a draft, undefined when gh can't say.
+export function publishedDay(tag) {
+  const repo = process.env.GITHUB_REPOSITORY ? ['--repo', process.env.GITHUB_REPOSITORY] : [];
   try {
-    const repo = process.env.GITHUB_REPOSITORY ? ['--repo', process.env.GITHUB_REPOSITORY] : [];
-    const published = execFileSync('gh', ['release', 'view', tag, ...repo, '--json', 'publishedAt', '--jq', '.publishedAt // empty'],
-      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 }).trim();
-    if (published) return published.slice(0, 10);
-  } catch {}
-  return git(['for-each-ref', '--format=%(creatordate:short)', `refs/tags/${tag}`]).trim();
+    const out = execFileSync('gh', ['release', 'view', tag, ...repo, '--json', 'isDraft,publishedAt',
+      '--jq', 'if .isDraft then "" else (.publishedAt // "") end'],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30000 }).trim();
+    return out ? out.slice(0, 10) : null;
+  } catch (err) {
+    return /release not found/i.test(String(err.stderr || '')) ? null : undefined;
+  }
 }
 
 const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });

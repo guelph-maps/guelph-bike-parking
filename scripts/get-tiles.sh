@@ -52,7 +52,7 @@ if ! gh api -H 'Accept: application/octet-stream' "repos/$GITHUB_REPOSITORY/rele
   exit 1
 fi
 got=$(wc -c < "$part")
-if [ "$got" != "$size" ]; then
+if [ "$got" -ne "$size" ]; then # as numbers: BSD wc pads with spaces
   echo "::error title=Base map download cut off::Got $got bytes of $name, the release says $size."
   exit 1
 fi
