@@ -8,7 +8,8 @@ settings were exhausted at 1.10 MB: stronger simplification visibly damaged the 
 pipeline goes past Planetiler with steps it can't do, to get a smaller file that is also
 cheaper to draw, with no visible loss where people look.
 
-Measured on 2026-11-16 (Ontario extract of 2026-11-15), tiles touching the city border:
+Measured on 2026-11-16 (Ontario extract of 2026-11-15), before tile level 10 came back, on
+tiles touching the city border:
 
 | | file | close-up draw (Leaflet 18) |
 |---|---|---|
@@ -16,14 +17,23 @@ Measured on 2026-11-16 (Ontario extract of 2026-11-15), tiles touching the city 
 | Planetiler alone, best settings | 1.10 MB | 655 ms |
 | **this pipeline** | **0.88 MB** | **507 ms** |
 
-With the per-level margins the site actually uses, the file is 1.17 MB (was 2.20 MB).
+With the per-level margins the site uses, the file was then 1.17 MB (format 1: 2.20 MB).
+Level 10 has since returned, so the map can zoom out to 11.5 (`js/map.js`). With it the file
+is 1.28 MB (Ontario extract of 2026-11-24):
+
+| level | margin | tiles | MB |
+|---|---|---|---|
+| 10 | city + 8 km | 4 | 0.12 |
+| 11 | city + 8 km | 9 | 0.14 |
+| 12 | city + 6 km | 17 | 0.16 |
+| 13 | city + 4 km | 41 | 0.87 |
 
 ## How it works
 
 ```
-OpenStreetMap ──Planetiler──▶ MVT, levels 11–13 ──trim──▶ MVT ──GBT──▶ guelph.v2.pmtiles
+OpenStreetMap ──Planetiler──▶ MVT, levels 10–13 ──trim──▶ MVT ──GBT──▶ guelph.v2.pmtiles
                                                                             │
- phone: MapLibre ◀── MVT, levels 11–15 ◀── js/gbt.js in MapLibre's workers ◀─┘
+ phone: MapLibre ◀── MVT, levels 10–15 ◀── js/gbt.js in MapLibre's workers ◀─┘
 ```
 
 1. **Planetiler stops at level 13** (`scripts/tiles/schema.yml`). A level-13 tile, stretched,
@@ -38,7 +48,8 @@ OpenStreetMap ──Planetiler──▶ MVT, levels 11–13 ──trim──▶ 
    - drops every feature and attribute that no style layer draws;
    - merges features the style can't tell apart;
    - cuts each feature's overlap beyond the tile edge to what its drawn width needs;
-   - puts levels 11–12 on a coarser grid.
+   - puts levels 11–12 on a coarser grid. Level 10 came back after the measurements and
+     keeps full precision until it is measured.
 
    Because it reads the style, tiles must be rebuilt after a style change.
 4. **Our own tile layout, GBT** (`scripts/tiles/own/gbt.mjs`). It holds the same features,
@@ -104,7 +115,7 @@ shown a blank map. Gzip adds 18 bytes a tile, 1.3 kB for the whole file.
 ### Draw time
 
 Phone viewport (iPhone 13), CPU slowed 4×, base map alone, median of 7–9 runs
-(`tools/bench.mjs`). An empty file takes ~470 ms (style, workers, glyphs, shaders).
+(`tools/bench.mjs`), with the files of the first table (2026-11-16, before level 10 returned). An empty file takes ~470 ms (style, workers, glyphs, shaders).
 
 | view | before 1.74 MB | Planetiler-only 1.10 MB | this 0.88 MB |
 |---|---|---|---|

@@ -19,9 +19,8 @@ import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cullPmtiles, outerRings } from './tiles/cull-pmtiles.mjs';
-import { readFormat, versioned } from './formats.mjs';
+import { readFormat, tilesAsset, versioned } from './formats.mjs';
 import { toGbtArchive } from './tiles/own/to-gbt.mjs';
-import { readFormat, tilesAsset } from './formats.mjs';
 import { trimPmtiles, RECOMMENDED } from './tiles/own/trim.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -31,14 +30,16 @@ const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 
 // Each zoom level covers the city boundary (saved by fetch-data.mjs) grown by
 // its own margin. Every level is a full new set of tiles, so the close-up levels
-// are most of the file: city + 2 km at level 14 is 1.16 MB, and 1 km would save
-// only 0.07 MB while showing blank squares at the edge on a laptop. Zoomed out,
-// a view spans far more ground, so the coarse levels reach further: with these
-// margins a phone sees no blank square from any zoom centred on the city or its
-// edge. Level 10 supports zooming out to 11.5 (minZoom in js/map.js), so narrow
-// phones and small embeds can fit the whole city. The file is about 2.38 MB; one 2 km
-// margin for levels 10-14 was 2.00 MB but left a blank corner zoomed out, and the
-// old 5 km box was 3.07 MB. Level 11 at 6 km saves 0.06 MB but blanks phone edges.
+// are most of the file. Zoomed out, a view spans far more ground, so the coarse
+// levels reach further: with these margins a phone sees no blank square from any
+// zoom centred on the city or its edge. Level 10 supports zooming out to 11.5
+// (minZoom in js/map.js), so narrow phones and small embeds can fit the whole city.
+// The file is 1.28 MB (2026-11-24 extract; level 13 is 0.87 MB of it). Measured on
+// the format-1 file, whose top level was 14: city + 2 km at level 14 was 1.16 MB and
+// 1 km would have saved only 0.07 MB while showing blank squares at the edge on a
+// laptop; the file was about 2.38 MB, one 2 km margin for levels 10-14 2.00 MB but
+// with a blank corner zoomed out, and the old 5 km box 3.07 MB. Level 11 at 6 km
+// saved 0.06 MB but blanked phone edges.
 // Named for the working tree's pin format, as fetch-data.mjs writes it.
 const CITY = join(ROOT, 'data', versioned('guelph-boundary.geojson', readFormat('data')));
 // Level 13 is the file's top level (the browser cuts deeper tiles from it, see
