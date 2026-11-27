@@ -18,6 +18,7 @@ import { homedir } from 'node:os';
 import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cullPmtiles, outerRings } from './tiles/cull-pmtiles.mjs';
+import { readFormat, versioned } from './formats.mjs';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, 'build');
@@ -34,7 +35,8 @@ const SCHEMA = join(ROOT, 'scripts', 'tiles', 'schema.yml');
 // phones and small embeds can fit the whole city. The file is about 2.38 MB; one 2 km
 // margin for levels 10-14 was 2.00 MB but left a blank corner zoomed out, and the
 // old 5 km box was 3.07 MB. Level 11 at 6 km saves 0.06 MB but blanks phone edges.
-const CITY = join(ROOT, 'data', 'guelph-boundary.geojson');
+// Named for the working tree's pin format, as fetch-data.mjs writes it.
+const CITY = join(ROOT, 'data', versioned('guelph-boundary.geojson', readFormat('data')));
 const MARGIN_KM = { 10: 8, 11: 8, 12: 6, 13: 4, 14: 2 };
 const UNCUT = join(BUILD, 'guelph-uncut.pmtiles');
 
