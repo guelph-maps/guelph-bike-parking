@@ -40,8 +40,8 @@ OpenStreetMap ──Planetiler──▶ MVT, levels 11–13 ──trim──▶ 
 
    Because it reads the style, tiles must be rebuilt after a style change.
 4. **Our own tile layout, GBT** (`scripts/tiles/own/gbt.mjs`). It holds the same features,
-   stored as separate columns of numbers and deflated, without the feature ids the style
-   never reads. The file is still PMTiles, so streaming before it's saved, and the saved
+   stored as separate columns of numbers, each tile gzipped by the PMTiles file as
+   Planetiler's tiles were, without the feature ids the style never reads. The file is still PMTiles, so streaming before it's saved, and the saved
    offline copy, work as before.
 5. **The phone makes the vector tiles** (`js/gbt.js`). MapLibre's workers turn GBT back into
    ordinary vector tiles, off the page's thread. MapLibre is told the tiles go to level 15,
@@ -68,7 +68,7 @@ OpenStreetMap ──Planetiler──▶ MVT, levels 11–13 ──trim──▶ 
 
 ### The GBT payload
 
-One byte `0x47`, then deflate-raw of:
+One byte `0x48` (format version 1), then:
 - the layer count, and per layer its name, extent, version, key and value tables (raw MVT
   values), feature count and an "ids kept" flag;
 - the byte length of each of eight streams;
@@ -76,16 +76,22 @@ One byte `0x47`, then deflate-raw of:
   tags, part counts, point counts, x deltas, y deltas.
 
 Coordinates are zigzag varint deltas that run on across features within a layer. Polygon rings
-carry no closing point, as in MVT. The PMTiles header says tile type 0 ("unknown") and no tile
-compression, so nothing mistakes a payload for MVT, and `js/gbt.js` only cuts tiles in files
-of that type.
+carry no closing point, as in MVT. The PMTiles header says tile type 0 ("unknown"), so nothing
+mistakes a payload for MVT, and `js/gbt.js` only cuts tiles in files of that type.
+
+Each payload is gzipped by the container (tile compression 2, as in Planetiler's MVT files),
+not inside the payload. The pmtiles library then unzips it the way it unzipped format-1 tiles:
+with `DecompressionStream('gzip')`, or its bundled inflate on phones without one (iOS before
+16.4). Version 0 (`0x47`) deflated inside the payload and inflated it with
+`DecompressionStream('deflate-raw')`, which Chrome before 103 lacks, so those phones would have
+shown a blank map. Gzip adds 18 bytes a tile, 1.3 kB for the whole file.
 
 ### How the browser handles requests
 
 - `pmtiles://guelph`: the TileJSON request, answered on the page. For a GBT file the tile URL
   carries the stored top level (`pmtiles://guelph@13/{z}/{x}/{y}`) and `maxzoom` becomes 15.
 - `pmtiles://guelph@13/z/x/y`: answered in a worker.
-  - At z ≤ 13 the stored tile is inflated and re-encoded.
+  - At z ≤ 13 the stored tile (unzipped by pmtiles on the page) is re-encoded as MVT.
   - Deeper, the decoded ancestor is cut: clipped to the tile plus a 64-unit margin and scaled
     up, so nothing is rounded except new points on the cut edges.
   - Each worker keeps its last 8 decoded ancestors. An ancestor fetch isn't cancelled along

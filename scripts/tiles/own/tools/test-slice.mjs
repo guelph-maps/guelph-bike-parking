@@ -1,6 +1,6 @@
 // decode -> encode equals toMvt; slicing a tile into its 4 children: every child decodes,
 // and the union of child features covers the parent's features.
-import { inflateRawSync } from 'node:zlib';
+import { gunzipSync } from 'node:zlib';
 import { listTiles } from '../../cull-pmtiles.mjs';
 import { decodeTile } from '../mvt.mjs';
 import '../../../../js/gbt.js';
@@ -8,7 +8,7 @@ const G = globalThis.GBT;
 const { tiles } = listTiles(process.argv[2]);
 let n = 0, ms = 0, slices = 0;
 for (const [k, payload] of tiles) {
-  const body = inflateRawSync(payload.subarray(1));
+  const body = gunzipSync(payload).subarray(1);
   const a = Buffer.from(G.toMvt(body)), layers = G.decode(body), b = Buffer.from(G.encode(layers));
   if (Buffer.compare(a, b)) throw new Error('decode/encode differs ' + k);
   if (!k.startsWith('13/')) continue;

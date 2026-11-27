@@ -1,10 +1,13 @@
 // Turns our own compact tile payload ("GBT", written by scripts/tiles/own/gbt.mjs)
 // back into Mapbox Vector Tile bytes, so MapLibre draws it as usual.
-// GBT.toMvt(inflatedBody) -> Uint8Array. GBT.inflate(payload) -> Promise of the body.
+// GBT.toMvt(body) -> Uint8Array, body being a payload without its first (version) byte.
+// The PMTiles file gzips each payload and the pmtiles library unzips it before it gets
+// here (DecompressionStream, or its own fallback on older phones), so nothing in this
+// file decompresses.
 (function (root) {
   'use strict';
 
-  var MAGIC = 0x47;
+  var MAGIC = 0x48; // format version, as in scripts/tiles/own/gbt.mjs
 
   function Reader(buf, pos) { this.b = buf; this.p = pos || 0; }
   Reader.prototype.v = function () {
@@ -342,16 +345,10 @@
     return false;
   }
 
-  async function inflate(payload) {
-    var ds = new DecompressionStream('deflate-raw');
-    var stream = new Blob([payload.subarray(1)]).stream().pipeThrough(ds);
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  }
-
   function isGbt(data) { return data && data.length > 0 && data[0] === MAGIC; }
 
   // One vector tile (MVT bytes) for z/x/y of a GBT file whose top level is `top`,
-  // from getRaw(z, x, y, shared) -> stored payload (or null); `shared` fetches are
+  // from getRaw(z, x, y, shared) -> stored tile, unzipped by pmtiles (or null); `shared` fetches are
   // used by several tiles, so they must not be cancelled with the one that asked. Past the top level the tile is
   // cut from its stored ancestor, so MapLibre works on a quarter of the data per
   // tile at each level deeper. Decoded ancestors are kept in `cache` (a Map).
@@ -361,7 +358,7 @@
       var p = cache.get(id);
       if (p) { cache.delete(id); cache.set(id, p); }
       else {
-        p = getRaw(top, px, py, true).then(async function (raw) { return isGbt(raw) ? decode(await inflate(raw)) : null; });
+        p = getRaw(top, px, py, true).then(function (raw) { return isGbt(raw) ? decode(raw.subarray(1)) : null; });
         p.catch(function () { cache.delete(id); });
         cache.set(id, p);
         if (cache.size > 8) cache.delete(cache.keys().next().value);
@@ -373,7 +370,7 @@
     }
     var raw = await getRaw(z, x, y);
     if (!isGbt(raw)) return raw;
-    var body = await inflate(raw);
+    var body = raw.subarray(1);
     return hasMinzoom(body) ? encode(applyMinzoom(decode(body), z)) : toMvt(body);
   }
 
@@ -386,7 +383,7 @@
   //                            deeper tiles than the file has.
   //   pmtiles://key[@top]/z/x/y  a vector tile, made on the page (used only when the
   //                            workers don't have the handler from installWorkers)
-  //   pmtiles-raw://key/z/x/y  the stored bytes, for the workers' handler
+  //   pmtiles-raw://key/z/x/y  a stored tile, unzipped by pmtiles, for the workers' handler
   function protocols(pm, opts) {
     var sliceTo = (opts && opts.sliceTo) || 0, cache = new Map();
     function raw(key, z, x, y, abort) {
@@ -434,5 +431,5 @@
     });
   }
 
-  root.GBT = { toMvt: toMvt, inflate: inflate, isGbt: isGbt, protocols: protocols, makeTile: makeTile, applyMinzoom: applyMinzoom, decode: decode, encode: encode, slice: slice };
+  root.GBT = { toMvt: toMvt, isGbt: isGbt, protocols: protocols, makeTile: makeTile, applyMinzoom: applyMinzoom, decode: decode, encode: encode, slice: slice };
 })(typeof self !== 'undefined' ? self : globalThis);

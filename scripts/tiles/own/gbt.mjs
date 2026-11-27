@@ -1,9 +1,9 @@
 // Encoder for "GBT", our own tile payload: the same features as an MVT tile, laid
-// out in columns (one stream per kind of number) so deflate can find patterns that
+// out in columns (one stream per kind of number) so gzip can find patterns that
 // MVT's interleaved varints hide. js/gbt.js turns a payload back into MVT bytes in
 // the browser, so MapLibre sees ordinary vector tiles.
 //
-// Payload = 1 byte format version (0x47 'G' + version), then deflate-raw of:
+// Payload = 1 byte format version (0x47 'G' + version, now 0x48), then:
 //   varint layerCount, then per layer the header
 //     name, extent, version, keys[], values[] (raw MVT Value messages), featureCount, flags (1 = ids)
 //   then the byte length of each of the 8 streams, then, for all layers in order, each stream in turn (so like numbers sit together):
@@ -11,11 +11,16 @@
 //   Coordinates are deltas from the previous point of the same layer (not reset per feature).
 //   Polygon rings carry no closing point, as in MVT.
 //
+// The payload itself is not compressed: the PMTiles file gzips each tile (to-gbt.mjs),
+// so the browser's pmtiles library unzips it on its well-tried path (with its own
+// fallback where DecompressionStream is missing) before js/gbt.js sees it.
+//
 // encodeGbt(tile, { ids: false }) drops feature ids (the style uses none).
 
-import { deflateRawSync } from 'node:zlib';
-
-export const MAGIC = 0x47;
+// Version 1: the body is no longer deflated inside the payload (version 0 was), so a
+// version-0 file saved by an early test build passes through undecoded instead of
+// being read as garbage.
+export const MAGIC = 0x48;
 
 class Bytes {
   constructor() { this.a = []; }
@@ -57,6 +62,5 @@ export function encodeGbt(tile, opts = {}) {
   }
   const outs = S.map((k) => streams[k].out());
   for (const o of outs) head.v(o.length);
-  const body = Buffer.concat([head.out(), ...outs]);
-  return Buffer.concat([Buffer.from([MAGIC]), deflateRawSync(body, { level: 9 })]);
+  return Buffer.concat([Buffer.from([MAGIC]), head.out(), ...outs]);
 }

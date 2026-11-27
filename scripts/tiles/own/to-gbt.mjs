@@ -3,7 +3,7 @@
 // features (ids dropped), using the browser decoder js/gbt.js.
 //   node scripts/tiles/own/to-gbt.mjs in.pmtiles out.pmtiles [--ids]
 // or toGbtArchive(in, out, { ids }) from a script.
-import { gunzipSync, inflateRawSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,17 +19,21 @@ export function toGbtArchive(input, output, opts = {}) {
   for (const [k, gz] of tiles) {
     const tile = decodeTile(gunzipSync(gz));
     const payload = encodeGbt(tile, { ids });
-    out.set(k, payload);
-    // check: the browser decoder gives back the same features
-    const mvt = globalThis.GBT.toMvt(inflateRawSync(payload.subarray(1)));
+    const stored = gzipSync(payload, { level: 9 });
+    out.set(k, stored);
+    // check: the browser decoder gives back the same features from what pmtiles
+    // hands it once it has unzipped the stored tile
+    const mvt = globalThis.GBT.toMvt(gunzipSync(stored).subarray(1));
     if (!ids) for (const l of tile.layers) for (const f of l.features) f.id = undefined;
     if (Buffer.compare(Buffer.from(mvt), encodeTile(tile)) !== 0) throw new Error(`tile ${k} does not round-trip`);
     const z = k.split('/')[0];
-    levels[z] = (levels[z] || 0) + payload.length;
+    levels[z] = (levels[z] || 0) + stored.length;
   }
-  // Payloads are stored as they are (the decoder inflates them itself), and the tile
-  // type says "unknown" so nothing mistakes them for MVT.
-  writeArchive(output, { ...header, tileCompression: 1, tileType: 0 }, metadata, out);
+  // Each payload is gzipped by the container (tile compression 2), like Planetiler's
+  // MVT, so pmtiles unzips it in the browser with DecompressionStream('gzip') or its
+  // bundled fallback, and js/gbt.js never decompresses anything. The tile type says
+  // "unknown" so nothing mistakes the payloads for MVT.
+  writeArchive(output, { ...header, tileCompression: 2, tileType: 0 }, metadata, out);
   return { tiles: out.size, levels };
 }
 
