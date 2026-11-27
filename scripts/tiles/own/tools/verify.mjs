@@ -2,11 +2,12 @@
 // square [0,E]^2 (in 4096 units), counting only features some style layer draws.
 // Prune, merge and buffer should leave both unchanged; quantize nearly so.
 import { gunzipSync } from 'node:zlib';
+import { fileURLToPath } from 'node:url';
 import { listTiles } from '../../cull-pmtiles.mjs';
 import { decodeTile, tagsOf } from '../mvt.mjs';
 import { loadStyle, activeLayers, drawSignature } from '../style-eval.mjs';
 const [refFile, outFile] = process.argv.slice(2);
-const style = loadStyle('../../../js/style.js');
+const style = loadStyle(fileURLToPath(new URL('../../../../js/style.js', import.meta.url)));
 function clipSeg(ax, ay, bx, by, E) { // Liang-Barsky, returns clipped length
   let t0 = 0, t1 = 1; const dx = bx - ax, dy = by - ay;
   for (const [p, q] of [[-dx, ax], [dx, E - ax], [-dy, ay], [dy, E - ay]]) {
