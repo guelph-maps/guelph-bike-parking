@@ -6,6 +6,8 @@ sourcePaths:
   - "scripts/build-site.sh"
   - "scripts/delta-summary.mjs"
   - "scripts/get-tiles.sh"
+  - "scripts/get-live-tiles.sh"
+  - "scripts/tiles-changed.mjs"
   - "scripts/mark-beta.mjs"
   - "DATA_FORMAT"
   - "data/FORMAT"
@@ -28,9 +30,10 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 
 - [deploy.yml](../../../.github/workflows/deploy.yml): Beta publishes from `main`; production only runs on `v*` and `data-*` tags; beta push uses `ssh-agent` with `BETA_DEPLOY_KEY` and `BETA_DEPLOY_KEY_PASSPHRASE`.
 - [data-refresh.yml](../../../.github/workflows/data-refresh.yml): Weekly automation fetches fresh OSM data and opens or updates a PR against `main`.
-- [tiles.yml](../../../.github/workflows/tiles.yml): Manual workflow builds a draft `data-*` release and pushes the new PMTiles asset into the beta path.
+- [tiles.yml](../../../.github/workflows/tiles.yml): Weekly (Mondays) and manual workflow builds a draft `data-*` release with the new PMTiles asset, replaces older drafts it made (picked by `scripts/old-drafts.jq`, tested in `tests/old-drafts.spec.js`), and updates beta; a scheduled week whose tiles match the last file (`scripts/tiles-changed.mjs`) publishes nothing.
 - [build-site.sh](../../../scripts/build-site.sh): Validates app/data refs and `DATA_FORMAT` / `data/FORMAT`, then assembles `_site` from the selected app and data tags.
 - [get-tiles.sh](../../../scripts/get-tiles.sh): Downloads the relevant `guelph.pmtiles` release asset for beta or production.
+- [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now, so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
 - [mark-beta.mjs](../../../scripts/mark-beta.mjs): Marks a built site as beta before pushing it to the beta Pages repository.
 - [DATA_FORMAT](../../../DATA_FORMAT): App compatibility contract used by the deployment preflight.
 - [data/FORMAT](../../../data/FORMAT): Data compatibility marker used alongside the app format.
@@ -45,10 +48,12 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 
 - Merges to `main` update the beta site; production changes only happen from release tags.
 - A production release needs both an app tag such as `v0.1.0` and a data tag such as `data-2026-11-09`, and the workflow exits early if either is missing.
-- On release-triggered production runs, the triggering tag is selected by default for its side (`v*` sets app, `data-*` sets data), while the other side falls back to the latest matching tag unless overridden by workflow inputs.
+- On release-triggered production runs, a `v*` tag selects itself as the app; data always defaults to the newest `data-*` tag by name, even when an older data release triggered the run, so publishing an old draft can't roll data back. Workflow inputs override either side for deliberate rollbacks.
 - `DATA_FORMAT` and `data/FORMAT` must match exactly. A mismatch aborts the deploy and leaves the site on the last known-good release.
 - Beta requires `tiles/tiles.json` inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
 - `scripts/get-tiles.sh` downloads the newest matching `guelph.pmtiles` asset for the data tag; production refuses to deploy if none exists.
+- Weekly drafts pin the data tag to the build commit, so publishing releases out of order cannot change the parking data selected by later app releases.
+- Weekly tile builds are safe for phones because `js/basemap.js` replaces a saved base map once it is 30 days behind, when the site rolls back, or on Android Wi-Fi. Publish weekly drafts only after an app release newer than v0.1.1 is live; older apps re-download 3 MB on every file change.
 - Beta publish exits early when either deploy secret is missing or when `BETA_DEPLOY_KEY` is unencrypted.
 
 ## Gotchas and non-obvious behaviour
@@ -57,5 +62,5 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - A successful `ssh-add` is not enough for beta deploy success: GitHub still rejects pushes if the public deploy key in `Coehill/guelph-bike-parking-beta` does not match the private key secret or lacks write access.
 - The beta deploy is intentionally a preview of `main`, not a production release; it has no special release tag and is not meant to be a stable live environment.
 - Data-only changes remain in git and do not trigger a new app cache name; the service worker version stamp is derived from the app ref, so app releases are the only thing that forces a fresh app download.
-- Production fails early if the selected `data-*` release lacks `guelph.pmtiles` in its asset list. The release pipeline expects a non-draft `data-*` tag with that asset, so any new base-map release must upload the file before publishing the tag.
-- Duplicate same-day `data-*` tags are a release-time trap: if a stale draft and a published release share the same tag name, the workflow can resolve the wrong one. In that case, upload the asset to the published release and remove the stale draft so future deploys stay deterministic.
+- Production uses the newest published `guelph.pmtiles` up to the selected data tag and fails early if there is none. The weekly build never uploads to a published release: scheduled runs warn and skip, and manual runs fail.
+- Each deploy keeps the live map file under the name its `tiles.json` gives (`scripts/get-live-tiles.sh` → `build/previous/`), so pages still streaming it keep their tiles.

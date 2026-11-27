@@ -77,7 +77,8 @@
   // Save the whole map on the device, except inside other sites' pages (each
   // embedding site would keep its own copy) or when the phone asks to save data.
   var saveData = navigator.connection && navigator.connection.saveData;
-  BikeBasemap.start({ autoSave: !embed && !saveData });
+  var autoSave = !embed && !saveData;
+  BikeBasemap.start({ autoSave: autoSave });
   BikeBasemap.onChange(function (s) {
     if (s.status === 'unavailable' && map.hasLayer(bikeMap)) {
       map.removeLayer(bikeMap);
@@ -800,7 +801,22 @@
         ', so it works with no signal.' + safari + '</p>' +
         '<button type="button" class="bp-link-btn" data-act="remove">Remove saved map</button>';
     } else if (s.status === 'outdated') {
-      html = '<p>A saved map is on this device. A newer one is available.' + safari + '</p><button type="button" data-act="save">Update saved map' + size + '</button>';
+      // A new map is built every week; phones fetch it by themselves once
+      // theirs is a month behind (basemap.js shouldUpdate), or on demand here.
+      // Embeds and Save-Data never fetch by themselves, so don't promise it there.
+      var m = /^(\d{4})-(\d\d)-(\d\d)$/.exec((s.saved && s.saved.date) || '');
+      var savedOn = m
+        ? 'The map saved on this device is from ' + new Date(+m[1], m[2] - 1, +m[3]).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' }) + '.'
+        : 'A saved map is on this device.';
+      var savedDate = Date.parse(s.saved && s.saved.date);
+      var currentDate = Date.parse(s.info && s.info.date);
+      var available = 'A different one is ready.';
+      if (savedDate === savedDate && currentDate === currentDate) {
+        if (currentDate < savedDate) available = 'The site has gone back to an older map.';
+        else if (currentDate > savedDate) available = 'A newer one is ready.';
+      }
+      html = '<p>' + savedOn + ' ' + available + (autoSave ? ' Yours updates by itself when needed.' : '') +
+        safari + '</p><button type="button" data-act="save">Update saved map' + size + '</button>';
     } else if (s.status === 'online') {
       html = '<p>Save the whole Guelph map on this device so it works with no signal. Parking data is kept either way.' + safari + '</p>' +
         '<button type="button" data-act="save">Save map for offline' + size + '</button>';

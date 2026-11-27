@@ -103,13 +103,24 @@ works with no signal anywhere in the city. It's styled for cycling (`js/style.js
 The tiles are built with [Planetiler](https://github.com/onthegomap/planetiler) and the
 custom schema in `scripts/tiles/schema.yml`, which keeps only what the style draws
 (each layer's classes and attributes are described in its comments; test cases in
-`schema.spec.yml`). They're built on request (Actions → Build base map tiles) from
-Geofabrik's Ontario extract, because each new file is a download on every phone. The
-result is a draft data release holding `guelph.pmtiles`: beta uses it straight away, and
-publishing the draft pushes it to production. A data release without a tile file keeps the one
-before it. `scripts/publish-tiles.mjs` copies the file
-into the site under a content-hashed name and writes `tiles/tiles.json`; phones that have
-an older copy download the new one in the background and switch on the next visit.
+`schema.spec.yml`). They're built from Geofabrik's Ontario extract every Monday evening,
+or by hand (Actions → Build base map tiles). A week whose tiles match the last file's
+(`scripts/tiles-changed.mjs`) publishes nothing. Otherwise the result is a draft data
+release holding `guelph.pmtiles`, replacing any older such draft: beta uses it straight
+away, and publishing the draft puts it on production. Production always takes the newest
+data release by name, with the parking data from its build's commit, so publishing an
+older draft late changes nothing. A data release without a tile file keeps the one before it.
+`scripts/publish-tiles.mjs` copies the file into the site
+under a content-hashed name and writes `tiles/tiles.json`. Each deploy also keeps the
+file the site was serving until then (`scripts/get-live-tiles.sh`), so a page that's
+streaming it when a new map goes live keeps its tiles; the one before that is dropped.
+
+Streaming maps (embeds, and phones that haven't saved the map) always show the newest
+file. A phone that has saved an older copy doesn't fetch every new one, since each is
+3 MB: it updates in the background once its copy's OpenStreetMap data is 30 days behind,
+or sooner when Chrome on Android reports Wi-Fi (iPhones don't say), and switches on the
+next visit. It also replaces the saved copy when the site rolls back to an older map.
+About shows the saved copy's date and an "Update saved map" button.
 
 To build locally (Java 21+ and the
 [Planetiler jar](https://github.com/onthegomap/planetiler/releases)):
@@ -180,20 +191,19 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
   `Coehill/guelph-bike-parking-beta`.
 - **Production**, [guelph.bike](https://guelph.bike/), only changes when someone publishes
   a GitHub release. A `v*` release publishes that app tag with the latest data release,
-  and a `data-*` release publishes that data tag with the latest app release.
+  and a `data-*` release publishes the latest data release with the latest app release. Data
+  always goes to the newest tag by name, so publishing an older draft late can't roll it back.
 
 | Release | Tag | Puts on production |
 |---|---|---|
 | App | `v0.1.0` | the app files at that tag |
-| Data | `data-2026-11-09` | `data/` at that tag, and `guelph.pmtiles` if the release has one |
+| Data | `data-2026-11-09` | `data/` at the newest data release, and the newest published `guelph.pmtiles` up to it |
 
-Release checklist for the bike base map: when a new `data-*` release carries a new
-`guelph.pmtiles` file, upload that asset to the published release before publishing it.
-`./scripts/get-tiles.sh` only picks up non-draft `data-*` releases whose asset list includes
-`guelph.pmtiles`; if that asset is missing, the production workflow exits at "Get the
-base map" and never reaches the Pages deployment steps. If a same-day tag exists as both a
-stale draft and a published release, attach the asset to the published release and delete
-or ignore the stale draft so the workflow always resolves the same tag deterministically.
+Publish weekly base map drafts only once an app release newer than v0.1.1 is live. Phones
+on v0.1.1 or older download the whole 3 MB map again whenever the file changes.
+
+The production deploy fails at "Get the base map" if no published data release up to the
+chosen one has `guelph.pmtiles`. The weekly build never changes the file on a published release.
 
 To go back, run the Deploy site workflow from a release tag and name the older app or data
 release. Beta shows the next version with `-dev` (`0.1.1-dev`), worked out from the

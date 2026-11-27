@@ -1,10 +1,18 @@
 name: Build base map tiles
 
-# Run by hand. A new tile file is a 3 MB download on every phone, so the base map
-# only changes when someone wants it to. The result is a draft data release: beta
-# picks it up at once, and publishing the draft puts it live.
+# Every Monday, next to the data check, and by hand. The result is a draft data
+# release: beta picks it up at once, and publishing the draft puts it live. Phones
+# with a saved copy don't fetch every new file, only one that's a month newer
+# than theirs (js/basemap.js), so a weekly build doesn't mean 3 MB a week each.
+# A scheduled week whose tiles match the last file's publishes nothing.
 on:
+  schedule:
+    - cron: '17 23 * * 1' # Mondays, 23:17 UTC: early evening in Guelph
   workflow_dispatch:
+
+concurrency:
+  group: tiles
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -25,6 +33,10 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      - name: Get the last tile file, to compare with
+        run: |
+          scripts/get-tiles.sh
+          if [ -f build/guelph.pmtiles ]; then mv build/guelph.pmtiles build/last-release.pmtiles; fi
       - name: Build the tiles from Geofabrik's Ontario extract
         env:
           PLANETILER_JAR: build/planetiler.jar
@@ -35,16 +47,60 @@ jobs:
           echo "f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d  build/planetiler.jar" | sha256sum -c -
           curl -sSfL -o build/ontario.osm.pbf https://download.geofabrik.de/north-america/canada/ontario-latest.osm.pbf
           node scripts/build-tiles.mjs build/ontario.osm.pbf
+      # Each build has a new file name (it carries the OSM date), so compare the tiles.
+      - name: Check whether the tiles changed
+        id: diff
+        run: |
+          result=$(node scripts/tiles-changed.mjs build/last-release.pmtiles build/guelph.pmtiles)
+          echo "Tiles since the last file: $result"
+          publish=yes
+          if [ "$result" = same ] && [ "$GITHUB_EVENT_NAME" = schedule ]; then
+            publish=no
+            echo "::notice title=No new base map::The tiles match the last file; nothing published."
+          fi
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
       - name: Save them as a draft data release
+        id: release
+        if: steps.diff.outputs.publish == 'yes'
         run: |
           tag="data-$(date -u +%F)"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Never change the map file of a release that's already published.
+            draft=$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)
+            if [ "$draft" != true ]; then
+              if [ "$GITHUB_EVENT_NAME" = schedule ]; then
+                echo "::warning title=Release already published::$tag is published; next week's build will try again."
+                exit 0
+              fi
+              echo "::error title=Release already published::$tag is published, and its map file stays as it is. Run this again tomorrow."
+              exit 1
+            fi
             gh release upload "$tag" build/guelph.pmtiles --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA"
           else
+            # Pin the data to this build. If releases are published out of order,
+            # a later app release must still select data in tag-name order.
             gh release create "$tag" build/guelph.pmtiles --draft --target "$GITHUB_SHA" --title "$tag" \
-              --notes 'New base map, with the map data on main at the time. Publishing this puts both live.'
+              --notes 'New base map, with the map data on main at the time. Publishing this puts both live.
+
+          Publish this only once an app release newer than v0.1.1 is live. Phones on v0.1.1 or older download the whole 3 MB map again every time the file changes.'
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | grep -qx 'guelph.pmtiles'
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      # One waiting base map is enough: drop the older drafts this workflow made, so
+      # whoever publishes picks the newest. By id, since a draft can share its tag.
+      - name: Drop older base map drafts
+        if: steps.release.outputs.tag != ''
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" |
+          jq -r --arg tag "$TAG" -f scripts/old-drafts.jq |
+          while read -r id name; do
+            echo "Deleting the older draft $name"
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id"
+          done
       # Actions can't set off other workflows by creating a release, only by asking.
       - name: Update the beta site
+        if: steps.release.outputs.tag != ''
         run: gh workflow run deploy.yml --ref main

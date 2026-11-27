@@ -83,3 +83,43 @@ test('replaces an outdated offline copy in WebKit', async ({ page }) => {
   expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
   expect(await page.evaluate(() => window.archiveFetchModes)).toEqual(['no-store']);
 });
+
+// tiles.json above says 2026-11-11. A new file is built every week, so a saved
+// copy is only replaced by itself once it's 30 days behind, or on Wi-Fi.
+async function startWithSavedCopy(page, savedDate, connection) {
+  await page.route('**/archive.pmtiles', route => route.fulfill({
+    contentType: 'application/octet-stream',
+    body: 'archive'
+  }));
+  return page.evaluate(async ([savedDate, connection]) => {
+    if (connection) Object.defineProperty(navigator, 'connection', { value: connection, configurable: true });
+    const cache = await caches.open('basemap-v1');
+    await cache.put('/old.pmtiles', new Response('old', { headers: { 'X-Map-Date': savedDate } }));
+    await window.BikeBasemap.start({ autoSave: true });
+    return {
+      status: window.BikeBasemap.state().status,
+      savedCopies: (await cache.keys()).map(k => new URL(k.url).pathname)
+    };
+  }, [savedDate, connection]);
+}
+
+test('keeps a saved copy that is less than a month behind', async ({ page }) => {
+  const state = await startWithSavedCopy(page, '2026-11-04');
+  expect(state).toEqual({ status: 'outdated', savedCopies: ['/old.pmtiles'] });
+  expect(await page.evaluate(() => window.archiveFetchModes)).toEqual([]);
+});
+
+test('replaces a saved copy that is a month behind', async ({ page }) => {
+  const state = await startWithSavedCopy(page, '2026-10-11');
+  expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
+});
+
+test('replaces a saved copy that is newer than the site', async ({ page }) => {
+  const state = await startWithSavedCopy(page, '2026-11-18');
+  expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
+});
+
+test('replaces a recent saved copy on Wi-Fi', async ({ page }) => {
+  const state = await startWithSavedCopy(page, '2026-11-04', { type: 'wifi' });
+  expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
+});
