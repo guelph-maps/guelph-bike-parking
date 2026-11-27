@@ -168,11 +168,13 @@ for (const hasHeading of [true, false]) {
       await page.route('**/index.html?*', async route => {
         if (!route.request().isNavigationRequest()) return route.continue();
         const response = await route.fetch();
+        // Old pages also predate js/formats.js; js/basemap.js stands in for it.
         const html = (await response.text()).replace(
           /  <div class="leaflet-top leaflet-left bp-title-position">[\s\S]*?(?=  <div id="map")/,
           hasHeading ? '  <h1>Guelph Bike Parking</h1>\n' : ''
-        );
+        ).replace(/ *<script src="js\/formats\.js"><\/script>\n/, '');
         expect(html).not.toContain('id="bp-title"');
+        expect(html).not.toContain('js/formats.js');
         await route.fulfill({ response, body: html });
       });
       await page.goto(`/index.html?legend=closed${embed ? '&embed=1' : ''}`);

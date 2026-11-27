@@ -9,6 +9,21 @@
 (function () {
   'use strict';
 
+  // A page cached before js/formats.js existed doesn't load it, yet the new service
+  // worker can still hand it this script and js/map.js, which then read this app's
+  // formats from here (old pages load this file first). `node scripts/formats.mjs
+  // check` keeps these numbers equal to js/formats.js.
+  if (!window.BikeFormats) {
+    var fallback = { data: 1, map: 1 };
+    window.BikeFormats = {
+      formats: fallback,
+      versioned: function (path, kind) {
+        var n = fallback[kind];
+        return n <= 1 ? path : path.replace(/(\.[A-Za-z]+)$/, '.v' + n + '$1');
+      }
+    };
+  }
+
   // Named for the map format this app reads (js/formats.js), so an older copy of
   // the app never picks up a map it can't draw.
   var INFO_URL = BikeFormats.versioned('tiles/tiles.json', 'map');

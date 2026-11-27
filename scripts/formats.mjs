@@ -98,6 +98,12 @@ function check() {
     const m = new RegExp(`${kind}:\\s*(\\d+)`).exec(app);
     if (!m || Number(m[1]) !== formats[kind]) problems.push(`js/formats.js says ${kind}: ${m ? m[1] : '?'}, ${FILES[kind]} says ${formats[kind]}`);
   }
+  // js/basemap.js carries a copy for pages cached before js/formats.js existed.
+  const fallback = /var fallback = \{ data: (\d+), map: (\d+) \}/.exec(readFileSync(join(ROOT, 'js', 'basemap.js'), 'utf8'));
+  if (!fallback) problems.push('js/basemap.js has no fallback formats for old pages');
+  else if (Number(fallback[1]) !== formats.data || Number(fallback[2]) !== formats.map) {
+    problems.push(`js/basemap.js falls back to data ${fallback[1]}, map ${fallback[2]}; the formats are data ${formats.data}, map ${formats.map}`);
+  }
   // Data written by fetch-data.mjs carries its format.
   const dataFormat = Number(readFileSync(join(ROOT, 'data', 'FORMAT'), 'utf8').trim());
   if (dataFormat !== formats.data) problems.push(`data/FORMAT is ${dataFormat} but DATA_FORMAT is ${formats.data}: run scripts/fetch-data.mjs`);
