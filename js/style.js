@@ -92,6 +92,9 @@
     }
     return [
       cas,
+      // Under the fill, so a crossing street's fill cuts the edge as it cuts the casing.
+      side('bike_left', -1),
+      side('bike_right', 1),
       // Older tiles: painted lanes and separated tracks as a blue edge on both sides, in place of the grey casing.
       {
         id: prefix + '-bike-lane', type: 'line', source: 'guelph', 'source-layer': 'transportation', minzoom: 12,
@@ -111,8 +114,6 @@
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: { 'line-color': ROAD_FILL, 'line-width': roadWidth(0) }
       },
-      side('bike_left', -1),
-      side('bike_right', 1),
       {
         id: prefix + '-bike-shared', type: 'line', source: 'guelph', 'source-layer': 'transportation', minzoom: 13,
         filter: ['all', is('class', ROADS), filter, ['any',
