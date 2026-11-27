@@ -82,6 +82,31 @@ test('keeps release notifications and update actions in the static About dialog'
   expect(await page.evaluate(() => caches.keys())).not.toContain('data-v-test');
 });
 
+for (const [build, label, links] of [
+  ['0.1.3-dev.abc1234', 'Version 0.1.3-dev (abc1234)', { abc1234: '/commit/abc1234' }],
+  ['0.1.3-dev.abc1234.pr31', 'Version 0.1.3-dev (abc1234, #31)', { abc1234: '/commit/abc1234', '#31': '/pull/31' }]
+]) {
+  test(`links the commit${links['#31'] ? ' and pull request' : ''} of beta build ${build}`, async ({ page }) => {
+    await page.addInitScript(build => {
+      const serviceWorker = new EventTarget();
+      serviceWorker.controller = {
+        postMessage(message, ports) { ports[0].postMessage({ build, date: '2026-11-27' }); }
+      };
+      serviceWorker.register = async () => ({ update: async () => {}, unregister: async () => true });
+      Object.defineProperty(navigator, 'serviceWorker', { value: serviceWorker });
+    }, build);
+    await page.goto('/index.html?legend=closed');
+    await page.locator('#bp-title h1').click();
+    const line = page.getByRole('dialog').locator('.bp-release-line');
+    await expect(line).toContainText(`${label}, updated`);
+    await expect(line.getByRole('link')).toHaveCount(Object.keys(links).length);
+    for (const [text, path] of Object.entries(links)) {
+      await expect(line.getByRole('link', { name: text, exact: true }))
+        .toHaveAttribute('href', `https://github.com/guelph-maps/guelph-bike-parking${path}`);
+    }
+  });
+}
+
 test('keeps the mobile key above the title and search', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/index.html?legend=closed');

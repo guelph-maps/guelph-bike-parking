@@ -132,6 +132,18 @@ jobs:
         run: |
           scripts/build-site.sh HEAD HEAD
           node scripts/mark-beta.mjs _site
+      # "0.1.3-dev.abc1234" becomes "0.1.3-dev.abc1234.pr31": About links to the pull
+      # request, and the app cache gets a name of its own.
+      - name: Put the pull request number in the version
+        env:
+          PR: ${{ inputs.pr }}
+        run: |
+          if grep -q "^var BUILD = '[^']*-dev\.[0-9a-f]*';" _site/sw.js; then
+            sed -i "s/^var BUILD = '\([^']*\)';/var BUILD = '\1.pr$PR';/" _site/sw.js
+            grep "^var BUILD = " _site/sw.js
+          else
+            echo "::warning title=Version not marked::Couldn't find the build version in sw.js; About won't name #$PR."
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: beta-site

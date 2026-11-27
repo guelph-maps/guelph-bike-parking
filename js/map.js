@@ -911,12 +911,19 @@
       .then(function () { location.reload(); });
   }
 
+  // As HTML. A beta build (scripts/build-site.sh) names its last app commit, and one
+  // built from a pull request (deploy.yml) ends in ".pr31"; both link to GitHub.
   function releaseLabel(r) {
     var b = r && r.build;
     if (!b) return 'Version unknown';
     if (b === '__BUILD__') return 'Development copy';
-    var m = /^(.+-dev)\.([0-9a-f]+)$/.exec(b); // a beta build, from scripts/build-site.sh
-    return m ? 'Version ' + m[1] + ' (' + m[2] + ')' : 'Version ' + b;
+    var m = /^(.+-dev)\.([0-9a-f]+)(?:\.pr(\d+))?$/.exec(b);
+    if (!m) return esc('Version ' + b);
+    function link(path, text) {
+      return '<a href="' + REPO_URL + path + '" target="_blank" rel="noopener">' + text + '</a>';
+    }
+    return esc('Version ' + m[1]) + ' (' + link('/commit/' + m[2], m[2]) +
+      (m[3] ? ', ' + link('/pull/' + m[3], '#' + m[3]) : '') + ')';
   }
 
   // "Released Nov 9, 2026"; a beta build is dated by its last change to the app.
@@ -936,13 +943,13 @@
     if (!top || !line) return;
     top.hidden = !release.newer;
     top.innerHTML = release.newer
-      ? '<p><span class="bp-new-tag">New</span> ' + esc(releaseLabel(release.newer)) + ' is ready.</p>' +
+      ? '<p><span class="bp-new-tag">New</span> ' + releaseLabel(release.newer) + ' is ready.</p>' +
         '<button type="button" data-act="update">Update now</button>'
       : '';
     var s = BikeBasemap.state();
     var bytes = (s.saved && s.saved.bytes) || (s.info && s.info.bytes);
     var date = releaseDate(release.loaded);
-    line.innerHTML = esc(releaseLabel(release.loaded)) +
+    line.innerHTML = releaseLabel(release.loaded) +
       (date ? ', ' + esc(date.charAt(0).toLowerCase() + date.slice(1)) : '') + '. ' +
       (navigator.onLine
         ? '<button type="button" class="bp-link-btn" data-act="clear">Clear cache &amp; reload</button>' +
