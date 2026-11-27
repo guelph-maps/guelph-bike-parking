@@ -10,16 +10,24 @@
 # After a map format bump the site serves one file per format, each named by its own
 # manifest (tiles.json, tiles.v2.json, ...; scripts/formats.mjs), and each is kept.
 #
-#   scripts/get-live-tiles.sh https://beta.guelph.bike
+#   scripts/get-live-tiles.sh https://beta.guelph.bike [app-ref]
+#
+# Formats up to the newer of the app ref's (default: the working tree's) and the
+# working tree's are looked for: production runs from the release that triggered
+# it, which may not be the app it deploys, and on a rollback the live site may
+# serve a newer format than the app going up.
 #
 # Anything that goes wrong only means no previous file: a warning, not a failure.
 set -uo pipefail
 
 site=${1%/}
+app_ref=${2:-}
 rm -rf build/previous
 mkdir -p build/previous
 
-current=$(node scripts/formats.mjs format map 2>/dev/null || echo 1)
+current=$(node scripts/formats.mjs format map "$app_ref" 2>/dev/null || echo 1)
+here=$(node scripts/formats.mjs format map 2>/dev/null || echo 1)
+newest=$(( here > current ? here : current ))
 
 # keep <manifest> <warn>: saves the file that manifest names. Only the current
 # format's manifest warns when it's missing; an older one may simply have ended.
@@ -54,7 +62,7 @@ keep() {
   echo "Keeping the live $url ($got bytes, from $manifest) next to the new file"
 }
 
-for format in $(seq 1 "$current"); do
+for format in $(seq 1 "$newest"); do
   manifest=tiles.json
   [ "$format" -gt 1 ] && manifest="tiles.v$format.json"
   warn=no

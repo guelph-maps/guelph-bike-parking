@@ -52,7 +52,7 @@ jobs:
           old=$(node scripts/formats.mjs overlap HEAD map)
           if [ -n "$old" ]; then scripts/get-tiles.sh "" "$old" || true; fi
       - name: Keep the base map that's live now, for pages still streaming it
-        run: scripts/get-live-tiles.sh https://beta.guelph.bike
+        run: scripts/get-live-tiles.sh https://beta.guelph.bike HEAD
       - name: Collect site files
         env:
           GH_TOKEN: ${{ github.token }} # formats.mjs overlap dates from the release, as above
@@ -249,7 +249,9 @@ jobs:
           old=$(node scripts/formats.mjs overlap "$APP" map)
           if [ -n "$old" ]; then scripts/get-tiles.sh "$DATA" "$old" || true; fi
       - name: Keep the base map that's live now, for pages still streaming it
-        run: scripts/get-live-tiles.sh https://guelph.bike
+        env:
+          APP: ${{ steps.pick.outputs.app }}
+        run: scripts/get-live-tiles.sh https://guelph.bike "$APP"
       - uses: actions/configure-pages@v5
       - name: Collect site files
         env:
