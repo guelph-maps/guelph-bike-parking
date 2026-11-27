@@ -9,7 +9,7 @@
 
 import { copyFile, readFile, writeFile, mkdir, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
-import { readFormat, versioned } from './formats.mjs';
+import { DATA_FILES, readFormat, versioned } from './formats.mjs';
 
 const OUT_DIR = process.argv[2] || 'data';
 // File names carry the pin format from 2 up (scripts/formats.mjs), so an older app
@@ -154,8 +154,10 @@ async function fetchBoundary() {
     if (!geometry || !/Polygon$/.test(geometry.type)) throw new Error('no polygon in response');
     return geometry;
   } catch (err) {
-    const saved = await readFile(out('guelph-boundary.geojson'), 'utf8')
-      .catch(() => readFile(join(OUT_DIR, 'guelph-boundary.geojson'), 'utf8')).catch(() => null);
+    // Possibly the previous format's, on the run that bumps it; written below
+    // under the new name.
+    const found = await existing('guelph-boundary');
+    const saved = found && await readFile(join(OUT_DIR, found.file), 'utf8').catch(() => null);
     if (saved) {
       console.warn(`City boundary unavailable, using the existing file: ${err.message}`);
       return JSON.parse(saved).features[0].geometry;
@@ -228,7 +230,34 @@ async function writeRoutes() {
     console.log(`Wrote ${features.length} cycling routes to ${OUT_DIR}/`);
   } catch (err) {
     console.warn(`Cycling routes unavailable, keeping the existing file: ${err.message}`);
+    await carryOver('cycle-routes');
   }
+}
+
+// On the run that bumps the format, "the existing file" has the old format's name,
+// and the cleanup below would delete it, leaving no routes file at all: the service
+// worker precaches every data file, so the new app couldn't install. The newest
+// older file moves to the new name instead, to be replaced on the next good run.
+async function carryOver(name) {
+  const found = await existing(name);
+  if (found?.format === FORMAT) return;
+  const target = out(`${name}.geojson`);
+  if (!found) {
+    console.warn(`::warning title=No ${name} file::There is no ${name} file in any format; the app won't install until one is fetched.`);
+    return;
+  }
+  await copyFile(join(OUT_DIR, found.file), target);
+  console.warn(`::warning title=Old ${name} kept::Copied ${found.file} (pin format ${found.format}) to ${target}; fetch again before releasing format ${FORMAT}.`);
+}
+
+// The saved file of that name in the current format, else in the newest older one:
+// { file, format }, or null.
+async function existing(name) {
+  const pattern = new RegExp(`^${name}(?:\\.v(\\d+))?\\.geojson$`);
+  return (await readdir(OUT_DIR).catch(() => []))
+    .map((file) => { const m = pattern.exec(file); return { file, format: m ? Number(m[1] || 1) : 0 }; })
+    .filter(({ format }) => format && format <= FORMAT)
+    .sort((a, b) => b.format - a.format)[0] || null;
 }
 
 const [data, boundary] = await Promise.all([fetchOverpass(), fetchBoundary(), writeRoutes()]);
@@ -263,7 +292,7 @@ if (boundary) {
 }
 // After a format bump, the files under the old format's names go: the deploy
 // publishes old-format data from the last data release of that format.
-const current = new Set(['bike-parking.geojson', 'guelph-boundary.geojson', 'cycle-routes.geojson'].map((n) => versioned(n, FORMAT)));
+const current = new Set(DATA_FILES.map((n) => versioned(n, FORMAT)));
 for (const f of await readdir(OUT_DIR)) {
   if (DATA_NAMES.test(f) && !current.has(f)) await rm(join(OUT_DIR, f));
 }

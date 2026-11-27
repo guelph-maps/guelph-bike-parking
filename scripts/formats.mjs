@@ -13,14 +13,14 @@
 // previous format under its names, for phones that haven't picked up the new app
 // yet. js/formats.js is the app's copy of the two numbers; `check` keeps them equal.
 //
-//   node scripts/formats.mjs check                 the copies agree (CI)
+//   node scripts/formats.mjs check                 the copies agree, the data files exist (CI)
 //   node scripts/formats.mjs name <path> <kind> [format]  a path under that (or the working tree's) format
 //   node scripts/formats.mjs format <kind> [ref]   the format number (of the app at ref)
 //   node scripts/formats.mjs asset [format]        the release file name of the base map
 //   node scripts/formats.mjs overlap <app-ref> <kind> [today]
 //        prints the previous format if it is still to be published, else nothing
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -28,6 +28,8 @@ import { fileURLToPath } from 'node:url';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const OVERLAP_DAYS = 60;
 export const FILES = { data: 'DATA_FORMAT', map: 'MAP_FORMAT' };
+// The pin format's files in data/, each precached by sw.js.
+export const DATA_FILES = ['bike-parking.geojson', 'guelph-boundary.geojson', 'cycle-routes.geojson'];
 
 // Same rule as js/formats.js: format 1 keeps the plain name.
 export function versioned(path, format) {
@@ -75,6 +77,11 @@ function check() {
   // Data written by fetch-data.mjs carries its format.
   const dataFormat = Number(readFileSync(join(ROOT, 'data', 'FORMAT'), 'utf8').trim());
   if (dataFormat !== formats.data) problems.push(`data/FORMAT is ${dataFormat} but DATA_FORMAT is ${formats.data}: run scripts/fetch-data.mjs`);
+  // sw.js precaches each of them, so without one the app doesn't install.
+  for (const name of DATA_FILES) {
+    const path = `data/${versioned(name, formats.data)}`;
+    if (!existsSync(join(ROOT, path))) problems.push(`${path} is missing: run scripts/fetch-data.mjs`);
+  }
   // index.html names the pin files directly (preload, the no-script link).
   const html = readFileSync(join(ROOT, 'index.html'), 'utf8');
   for (const m of html.matchAll(/data\/([\w-]+)(\.v\d+)?\.geojson/g)) {
