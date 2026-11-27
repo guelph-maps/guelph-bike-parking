@@ -129,11 +129,11 @@ jobs:
           echo "f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d  build/planetiler.jar" | sha256sum -c -
           curl -sSfL -o build/ontario.osm.pbf https://download.geofabrik.de/north-america/canada/ontario-latest.osm.pbf
           node scripts/build-tiles.mjs build/ontario.osm.pbf
-          # Named for its map format, as tiles.yml does; a branch from before map
-          # formats has just the one name.
+          # Named for its map format, as tiles.yml does. Newer build scripts write that
+          # name themselves; a branch from before map formats has just the one name.
           if [ -f scripts/formats.mjs ]; then
             name=$(node scripts/formats.mjs asset)
-            [ "$name" = guelph.pmtiles ] || cp build/guelph.pmtiles "build/$name"
+            [ -f "build/$name" ] || cp build/guelph.pmtiles "build/$name"
           fi
       # After a map format bump, older apps keep the previous format for a while.
       - name: Get the previous map format's base map
