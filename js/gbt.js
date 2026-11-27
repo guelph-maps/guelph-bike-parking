@@ -372,7 +372,9 @@
       return encode(applyMinzoom(slice(layers, dz, x & mask, y & mask, 64), z));
     }
     var raw = await getRaw(z, x, y);
-    if (!isGbt(raw)) return raw;
+    // A plain vector tile file (no top level) passes through; in a GBT file, a tile
+    // this code can't read (another layout version) is drawn empty, not as garbage.
+    if (!isGbt(raw)) return top === Infinity ? raw : new Uint8Array(0);
     var body = raw.subarray(1);
     return hasMinzoom(body) ? encode(applyMinzoom(decode(body), z)) : toMvt(body);
   }
