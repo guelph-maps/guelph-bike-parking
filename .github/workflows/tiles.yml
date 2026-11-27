@@ -3,7 +3,7 @@ name: Build base map tiles
 # Every Monday, next to the data check, and by hand. The result is a draft data
 # release: beta picks it up at once, and publishing the draft puts it live. Phones
 # with a saved copy don't fetch every new file, only one that's a month newer
-# than theirs (js/basemap.js), so a weekly build doesn't mean 2.4 MB a week each.
+# than theirs (js/basemap.js), so a weekly build doesn't mean 1.2 MB a week each.
 # A scheduled week whose tiles match the last file's publishes nothing.
 on:
   schedule:

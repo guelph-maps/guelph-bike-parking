@@ -8,7 +8,7 @@ type, mixed ones in the colours of the types they contain, and a group gets the 
 any spot in it is covered. Private parking
 (`access=private`) is left off. The map can be embedded in other websites, such as
 GCAT's, with an `<iframe>`. It works with no signal: the whole city's bike map is
-saved on the device (about 2.4 MB).
+saved on the device (about 1.2 MB).
 
 Production at **https://guelph.bike/**
 

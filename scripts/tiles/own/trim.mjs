@@ -34,8 +34,8 @@ const CLASS_RANK = ['path', 'footway', 'bridleway', 'track', 'steps', 'cycleway'
   'minor', 'tertiary', 'secondary', 'primary', 'trunk', 'motorway'];
 
 // What the 2026-11-16 measurements recommend (see the report): invisible on screenshots
-// apart from dash phase on lines crossing tile edges. Level 10 is not listed because the
-// map never draws it (minZoom 12); drop the level instead.
+// apart from dash phase on lines crossing tile edges. Level 10 (drawn only between map
+// zoom 11.5 and 12, js/map.js) wasn't measured, so it keeps full precision.
 export const RECOMMENDED = {
   prune: true, dropIds: true, merge: { keepLabelled: true }, buffer: {}, collinear: true,
   quantize: { 11: 2048, 12: 2048 },
