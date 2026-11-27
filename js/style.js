@@ -3,7 +3,8 @@
 //   solid blue        cycleways and paths designated for bikes
 //   dashed blue       paths where bikes are allowed
 //   dashed brown      unpaved paths where bikes are allowed
-//   blue road edges   painted bike lanes (thicker for separated tracks)
+//   blue road edges   painted bike lanes, on the side they're on (thicker for separated tracks)
+//   faint blue edges  paved shoulders
 //   dashed blue line  shared lanes (sharrows)
 //   orange dots       dismount sections
 //   faint grey        footpaths without bike access
@@ -33,17 +34,36 @@
     motorway: [1.6, 4, 16], trunk: [1.6, 4, 16], primary: [1.4, 3.6, 15], secondary: [1.2, 3.2, 14],
     tertiary: [1, 2.8, 13], minor: [0.6, 2, 11], pedestrian: [0.5, 1.6, 9], service: [0.3, 1, 6]
   };
-  function roadWidth(extra) {
-    var byClass = ['match', ['get', 'class']];
-    var z12 = byClass.slice(), z14 = byClass.slice(), z18 = byClass.slice();
-    Object.keys(ROAD_WIDTH).forEach(function (c) {
-      z12.push(c, ROAD_WIDTH[c][0] + extra * 0.3);
-      z14.push(c, ROAD_WIDTH[c][1] + extra);
-      z18.push(c, ROAD_WIDTH[c][2] + extra * 3);
+  // Anything "extra" around a road (casing, bike edges) scales by this at z12 / z14 / z18.
+  var EXTRA_SCALE = [0.3, 1, 3];
+  // f(road width, extra scale) per class, at each of z12 / z14 / z18; half the z12 value at z10.
+  function byRoadClass(f) {
+    var stops = [0, 1, 2].map(function (i) {
+      var m = ['match', ['get', 'class']];
+      Object.keys(ROAD_WIDTH).forEach(function (c) { m.push(c, f(ROAD_WIDTH[c][i], EXTRA_SCALE[i])); });
+      m.push(f([0.5, 1.5, 8][i], EXTRA_SCALE[i]));
+      return m;
     });
-    z12.push(0.5); z14.push(1.5); z18.push(8);
-    return zoomWidth([10, ['*', 0.5, z12], 12, z12, 14, z14, 18, z18]);
+    return zoomWidth([10, ['*', 0.5, stops[0]], 12, stops[0], 14, stops[1], 18, stops[2]]);
   }
+  function roadWidth(extra) {
+    return byRoadClass(function (w, k) { return w + extra * k; });
+  }
+
+  // Bike infrastructure on one side of a road: a blue edge just outside the road fill, on the
+  // left or right of the line's direction (bike_left / bike_right in the tiles). Edge width at z14.
+  var SIDE_KINDS = ['track', 'lane', 'shoulder'];
+  function sideEdge(key) {
+    return ['match', ['get', key], 'track', 2.25, 'shoulder', 1, 1.5];
+  }
+  function sideOffset(key, sign) {
+    return byRoadClass(function (w, k) { return ['*', sign, ['+', w / 2, ['*', k / 2, sideEdge(key)]]]; });
+  }
+  function sideWidth(key) {
+    return zoomWidth([10, ['*', 0.15, sideEdge(key)], 12, ['*', 0.3, sideEdge(key)], 14, sideEdge(key), 18, ['*', 3, sideEdge(key)]]);
+  }
+  // Tiles from before bike_left / bike_right carry only bike_lane, for both edges at once.
+  var noSides = ['all', not(has('bike_left')), not(has('bike_right'))];
 
   var ROAD_FILL = ['match', ['get', 'class'],
     'motorway', '#f2b88a', 'trunk', '#f2b88a', 'primary', '#f8d892', 'secondary', '#fbe9b5',
@@ -57,18 +77,34 @@
       paint: { 'line-color': casingColor, 'line-width': roadWidth(1.5) }
     };
     if (dash) cas.paint['line-dasharray'] = dash;
+    function side(key, sign) {
+      return {
+        id: prefix + '-bike-' + key.slice(5), type: 'line', source: 'guelph', 'source-layer': 'transportation', minzoom: 12,
+        filter: ['all', is('class', ROADS), filter, is(key, SIDE_KINDS)],
+        layout: { 'line-join': 'round', 'line-cap': 'round' },
+        paint: {
+          'line-color': BLUE,
+          'line-opacity': ['match', ['get', key], 'track', 1, 'shoulder', 0.45, 0.7],
+          'line-width': sideWidth(key),
+          'line-offset': sideOffset(key, sign)
+        }
+      };
+    }
     return [
       cas,
-      // Painted lanes and separated tracks: a blue edge in place of the grey casing.
+      // Under the fill, so a crossing street's fill cuts the edge as it cuts the casing.
+      side('bike_left', -1),
+      side('bike_right', 1),
+      // Older tiles: painted lanes and separated tracks as a blue edge on both sides, in place of the grey casing.
       {
         id: prefix + '-bike-lane', type: 'line', source: 'guelph', 'source-layer': 'transportation', minzoom: 12,
-        filter: ['all', is('class', ROADS), filter, ['==', ['get', 'bike_lane'], 'lane']],
+        filter: ['all', is('class', ROADS), filter, noSides, ['==', ['get', 'bike_lane'], 'lane']],
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: { 'line-color': BLUE, 'line-opacity': 0.7, 'line-width': roadWidth(3) }
       },
       {
         id: prefix + '-bike-track', type: 'line', source: 'guelph', 'source-layer': 'transportation', minzoom: 12,
-        filter: ['all', is('class', ROADS), filter, ['==', ['get', 'bike_lane'], 'track']],
+        filter: ['all', is('class', ROADS), filter, noSides, ['==', ['get', 'bike_lane'], 'track']],
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: { 'line-color': BLUE, 'line-width': roadWidth(4.5) }
       },
@@ -80,7 +116,9 @@
       },
       {
         id: prefix + '-bike-shared', type: 'line', source: 'guelph', 'source-layer': 'transportation', minzoom: 13,
-        filter: ['all', is('class', ROADS), filter, ['==', ['get', 'bike_lane'], 'shared']],
+        filter: ['all', is('class', ROADS), filter, ['any',
+          ['==', ['get', 'bike_left'], 'shared'], ['==', ['get', 'bike_right'], 'shared'],
+          ['all', noSides, ['==', ['get', 'bike_lane'], 'shared']]]],
         paint: { 'line-color': BLUE, 'line-opacity': 0.8, 'line-width': zoomWidth([13, 1, 18, 3]), 'line-dasharray': [2, 2] }
       }
     ];

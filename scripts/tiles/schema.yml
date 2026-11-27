@@ -18,6 +18,19 @@ sources:
 definitions:
   # Values of a tag that count as "true", for bridge/tunnel-style tags.
   not_no: &not_no [ "no", "0", "false" ]
+  # Roads that can carry on-road cycling infrastructure (cycleway=* and friends).
+  roads: &roads [ motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link,
+                  tertiary, tertiary_link, residential, unclassified, living_street, road, service ]
+  # cycleway=* values, grouped the way the map draws them.
+  bike_track: &bike_track [ track, opposite_track ]
+  bike_lanes: &bike_lanes [ lane, opposite_lane, buffered_lane ]
+  bike_shared: &bike_shared [ shared_lane, share_busway, opposite_share_busway ]
+  oneway_fwd: &oneway_fwd [ "yes", "1", "true" ]
+  # The most specific key wins: cycleway:left/right, then cycleway:both, then cycleway.
+  no_left_key: &no_left_key { __not__: { cycleway:left: __any__ } }
+  no_right_key: &no_right_key { __not__: { cycleway:right: __any__ } }
+  plain_for_left: &plain_for_left { __not__: { cycleway:left: __any__, cycleway:both: __any__ } }
+  plain_for_right: &plain_for_right { __not__: { cycleway:right: __any__, cycleway:both: __any__ } }
 
 layers:
 
@@ -242,10 +255,10 @@ layers:
         value: "no"
     # bike_lane: on-road cycling infrastructure from cycleway, cycleway:both/left/right (either side).
     # track > lane > shared > separate (separate = drawn as its own cycleway way).
+    # Kept for apps from before bike_left/bike_right, which draw it on both edges of the road.
     - key: bike_lane
       include_when:
-        highway: [ motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link,
-                   tertiary, tertiary_link, residential, unclassified, living_street, road, service ]
+        highway: *roads
       value:
       - if:
           cycleway: [ track, opposite_track ]
@@ -271,6 +284,79 @@ layers:
           cycleway:left: separate
           cycleway:right: separate
         value: separate
+    # bike_left / bike_right: track | lane | shoulder | shared on that side of the way, left and right
+    # as seen along the way's direction (the style draws them with line-offset). Nothing for no, none
+    # or separate (a separate cycleway is drawn as its own way). The most specific key wins, so
+    # cycleway:right=no beats cycleway:both=lane. A plain cycleway=* on a one-way road is the side
+    # to the right of traffic; opposite_* is the side against it.
+    - key: bike_left
+      include_when:
+        highway: *roads
+      value:
+      - if: { cycleway:left: *bike_track }
+        value: track
+      - if: { cycleway:left: *bike_lanes }
+        value: lane
+      - if: { cycleway:left: shoulder }
+        value: shoulder
+      - if: { cycleway:left: *bike_shared }
+        value: shared
+      - if: { __all__: [ *no_left_key, { cycleway:both: *bike_track } ] }
+        value: track
+      - if: { __all__: [ *no_left_key, { cycleway:both: *bike_lanes } ] }
+        value: lane
+      - if: { __all__: [ *no_left_key, { cycleway:both: shoulder } ] }
+        value: shoulder
+      - if: { __all__: [ *no_left_key, { cycleway:both: *bike_shared } ] }
+        value: shared
+      - if: { __all__: [ *plain_for_left, { __not__: { oneway: *oneway_fwd } }, { cycleway: track } ] }
+        value: track
+      - if: { __all__: [ *plain_for_left, { __not__: { oneway: "-1" } }, { cycleway: opposite_track } ] }
+        value: track
+      - if: { __all__: [ *plain_for_left, { __not__: { oneway: *oneway_fwd } }, { cycleway: [ lane, buffered_lane ] } ] }
+        value: lane
+      - if: { __all__: [ *plain_for_left, { __not__: { oneway: "-1" } }, { cycleway: opposite_lane } ] }
+        value: lane
+      - if: { __all__: [ *plain_for_left, { __not__: { oneway: *oneway_fwd } }, { cycleway: shoulder } ] }
+        value: shoulder
+      - if: { __all__: [ *plain_for_left, { __not__: { oneway: *oneway_fwd } }, { cycleway: [ shared_lane, share_busway ] } ] }
+        value: shared
+      - if: { __all__: [ *plain_for_left, { __not__: { oneway: "-1" } }, { cycleway: opposite_share_busway } ] }
+        value: shared
+    - key: bike_right
+      include_when:
+        highway: *roads
+      value:
+      - if: { cycleway:right: *bike_track }
+        value: track
+      - if: { cycleway:right: *bike_lanes }
+        value: lane
+      - if: { cycleway:right: shoulder }
+        value: shoulder
+      - if: { cycleway:right: *bike_shared }
+        value: shared
+      - if: { __all__: [ *no_right_key, { cycleway:both: *bike_track } ] }
+        value: track
+      - if: { __all__: [ *no_right_key, { cycleway:both: *bike_lanes } ] }
+        value: lane
+      - if: { __all__: [ *no_right_key, { cycleway:both: shoulder } ] }
+        value: shoulder
+      - if: { __all__: [ *no_right_key, { cycleway:both: *bike_shared } ] }
+        value: shared
+      - if: { __all__: [ *plain_for_right, { __not__: { oneway: "-1" } }, { cycleway: track } ] }
+        value: track
+      - if: { __all__: [ *plain_for_right, { __not__: { oneway: *oneway_fwd } }, { cycleway: opposite_track } ] }
+        value: track
+      - if: { __all__: [ *plain_for_right, { __not__: { oneway: "-1" } }, { cycleway: [ lane, buffered_lane ] } ] }
+        value: lane
+      - if: { __all__: [ *plain_for_right, { __not__: { oneway: *oneway_fwd } }, { cycleway: opposite_lane } ] }
+        value: lane
+      - if: { __all__: [ *plain_for_right, { __not__: { oneway: "-1" } }, { cycleway: shoulder } ] }
+        value: shoulder
+      - if: { __all__: [ *plain_for_right, { __not__: { oneway: "-1" } }, { cycleway: [ shared_lane, share_busway ] } ] }
+        value: shared
+      - if: { __all__: [ *plain_for_right, { __not__: { oneway: *oneway_fwd } }, { cycleway: opposite_share_busway } ] }
+        value: shared
     - key: surface
       value:
       - if:

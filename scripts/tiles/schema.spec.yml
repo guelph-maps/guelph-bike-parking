@@ -11,7 +11,103 @@ examples:
     geometry: line
     min_zoom: 10
     allow_extra_tags: false
-    tags: { class: secondary, name: Gordon Street, bike_lane: lane, surface: paved }
+    tags: { class: secondary, name: Gordon Street, bike_lane: lane, bike_right: lane, surface: paved }
+
+- name: lanes on both sides of a two-way street
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: tertiary, cycleway: lane }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 11
+    allow_extra_tags: false
+    tags: { class: tertiary, bike_lane: lane, bike_left: lane, bike_right: lane }
+
+- name: plain cycleway=lane on one carriageway of a divided road is on the right only
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: secondary, oneway: "yes", cycleway: lane }
+  output:
+    layer: transportation
+    geometry: line
+    at_zoom: 14
+    allow_extra_tags: false
+    tags: { class: secondary, bike_lane: lane, bike_right: lane, oneway: 1 }
+
+- name: plain cycleway=lane on a oneway=-1 road is on the way's left
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: secondary, oneway: "-1", cycleway: lane }
+  output:
+    layer: transportation
+    geometry: line
+    at_zoom: 14
+    allow_extra_tags: false
+    tags: { class: secondary, bike_lane: lane, bike_left: lane, oneway: -1 }
+
+- name: contraflow lane runs on the left of a one-way street
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: residential, oneway: "yes", cycleway: opposite_lane }
+  output:
+    layer: transportation
+    geometry: line
+    at_zoom: 14
+    allow_extra_tags: false
+    tags: { class: minor, bike_lane: lane, bike_left: lane, oneway: 1, contraflow: true }
+
+- name: a lane on one side and a separate cycleway on the other draws only the lane
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: residential, cycleway:left: lane, cycleway:right: separate }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 12
+    allow_extra_tags: false
+    tags: { class: minor, bike_lane: lane, bike_left: lane }
+
+- name: a side key beats cycleway:both
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: tertiary, cycleway:both: lane, cycleway:right: "no" }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 11
+    allow_extra_tags: false
+    tags: { class: tertiary, bike_lane: lane, bike_left: lane }
+
+- name: cycleway:both beats the plain key
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: secondary, cycleway: lane, cycleway:both: track }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 10
+    allow_extra_tags: false
+    tags: { class: secondary, bike_lane: track, bike_left: track, bike_right: track }
+
+- name: a paved shoulder is a shoulder, not a shared lane
+  input:
+    source: osm
+    geometry: line
+    tags: { highway: primary, cycleway:both: shoulder }
+  output:
+    layer: transportation
+    geometry: line
+    min_zoom: 10
+    allow_extra_tags: false
+    tags: { class: primary, bike_lane: shared, bike_left: shoulder, bike_right: shoulder }
 
 - name: cycleway:both=no gives no bike_lane
   input:
@@ -34,7 +130,7 @@ examples:
     layer: transportation
     geometry: line
     min_zoom: 11
-    tags: { class: tertiary, bike_lane: track }
+    tags: { class: tertiary, bike_lane: track, bike_left: track, bike_right: lane }
 
 - name: one-way street with contraflow for bikes
   input:
