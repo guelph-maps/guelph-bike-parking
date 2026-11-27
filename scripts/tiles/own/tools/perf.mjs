@@ -12,7 +12,7 @@ const waitIdle = (page) => page.waitForFunction(() => { const m = window.__map; 
 async function open(tiles, hash) {
   const ctx = await browser.newContext({ ...devices['iPhone 13'], serviceWorkers: 'block' });
   const page = await ctx.newPage();
-  await page.route('**/tiles/tiles.json', x => x.fulfill({ contentType: 'application/json', body: JSON.stringify({ url: tiles, bytes: 1, date: '2026-11-15' }) }));
+  await page.route('**/tiles/tiles*.json', x => x.fulfill({ contentType: 'application/json', body: JSON.stringify({ url: tiles, bytes: 1, date: '2026-11-15' }) }));
   await page.addInitScript(() => {
     let realL; Object.defineProperty(window, 'L', { configurable: true, get: () => realL, set: x => { realL = x; if (x && x.Map && !x.__h) { x.__h = 1; x.Map.addInitHook(function () { window.__map = this; }); } } });
     window.__gbt = 0; let realG; Object.defineProperty(window, 'GBT', { configurable: true, get: () => realG, set: g => { const t = g.toMvt; g.toMvt = (b) => { const s = performance.now(); const r = t(b); window.__gbt += performance.now() - s; return r; }; realG = g; } });

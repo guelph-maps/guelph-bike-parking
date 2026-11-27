@@ -15,7 +15,7 @@ const shots = {};
 for (const f of files) for (const v of views) {
   const ctx = await browser.newContext({ viewport: { width: 760, height: 560 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
   const page = await ctx.newPage();
-  await page.route('**/tiles/tiles.json', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ url: f, bytes: 1, date: '2026-11-15' }) }));
+  await page.route('**/tiles/tiles*.json', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ url: f, bytes: 1, date: '2026-11-15' }) }));
   // no bike-parking markers: only the base map
   await page.route('**/data/*.geojson', r => r.request().url().includes('boundary') ? r.continue() : r.fulfill({ contentType: 'application/json', body: '{"type":"FeatureCollection","features":[]}' }));
   await page.goto(`http://localhost:${PORT}/?legend=closed#${v.z}/${v.lat}/${v.lng}`);
