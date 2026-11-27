@@ -13,10 +13,23 @@ set -euo pipefail
 site=$1
 message=$2
 
-# tiles.json, or tiles.v2.json and up after a map format bump (scripts/formats.mjs). The
-# site may be a pull request's, built before or after a bump, so any of them will do.
-if ! find "$site/tiles" -maxdepth 1 -name 'tiles*.json' -size +0 2>/dev/null | grep -q .; then
-  echo "::error title=Missing beta base map::Beta deploy needs tiles/tiles.json (tiles.vN.json from map format 2). Build tiles and publish a data release with the map file first."
+# The manifest of the map format the built site reads, from its own js/formats.js
+# (tiles.json for 1, tiles.v2.json for 2, ...; scripts/formats.mjs), so a site whose
+# format has no base map yet fails here instead of going up without one. This runs
+# from the dispatched ref while the site may be a pull request's, so the working
+# tree's formats don't count. A site built before map formats reads tiles.json.
+map=1
+if [ -f "$site/js/formats.js" ]; then
+  map=$(sed -nE 's/.*[{ ,]map: *([0-9]+).*/\1/p' "$site/js/formats.js" | head -1)
+  if [ -z "$map" ]; then
+    echo "::error title=Unknown map format::Couldn't read the map format from $site/js/formats.js."
+    exit 1
+  fi
+fi
+manifest=tiles.json
+[ "$map" -gt 1 ] && manifest="tiles.v$map.json"
+if [ ! -s "$site/tiles/$manifest" ]; then
+  echo "::error title=Missing beta base map::This site reads map format $map, so beta needs tiles/$manifest. Build tiles and publish a data release with the map file first."
   exit 1
 fi
 

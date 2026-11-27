@@ -40,7 +40,7 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - [get-tiles.sh](../../../scripts/get-tiles.sh): Downloads the relevant `guelph.pmtiles` release asset for beta or production, through a temporary file checked against the release's size, so a cut-off download never reaches `build/`.
 - [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now (one per map format it serves), so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
 - [mark-beta.mjs](../../../scripts/mark-beta.mjs): Marks a built site as beta before pushing it to the beta Pages repository.
-- [publish-beta.sh](../../../scripts/publish-beta.sh): Checks the built site has a map manifest (`tiles/tiles.json`, or `tiles.vN.json` after a map format bump), pushes it to the beta Pages repository with the deploy key, and waits for beta.guelph.bike to answer. Both beta paths use it.
+- [publish-beta.sh](../../../scripts/publish-beta.sh): Checks the built site has the map manifest for its own map format, read from the site's `js/formats.js` (`tiles/tiles.json`, or `tiles.vN.json` after a map format bump; `tiles.json` for sites from before map formats), pushes it to the beta Pages repository with the deploy key, and waits for beta.guelph.bike to answer. Both beta paths use it.
 - [DATA_FORMAT](../../../DATA_FORMAT): App compatibility contract used by the deployment preflight.
 - [data/FORMAT](../../../data/FORMAT): Data compatibility marker used alongside the app format.
 
