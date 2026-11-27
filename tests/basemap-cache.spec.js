@@ -2,6 +2,12 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 
+// The app's own saved-map cache: 'basemap-v1' for map format 1, 'basemap-v1-mN' from 2
+// (js/basemap.js), so these tests pass whichever format the branch reads.
+const FORMATS_JS = fs.readFileSync(path.join(__dirname, '..', 'js', 'formats.js'), 'utf8');
+const MAP = Number(/map: *(\d+)/.exec(FORMATS_JS)[1]);
+const CACHE = MAP <= 1 ? 'basemap-v1' : `basemap-v1-m${MAP}`;
+
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     const fetch = window.fetch.bind(window);
@@ -15,7 +21,7 @@ test.beforeEach(async ({ page }) => {
     };
   });
 
-  await page.route('**/tiles/tiles.json', route => route.fulfill({
+  await page.route('**/tiles/tiles*.json', route => route.fulfill({
     contentType: 'application/json',
     body: JSON.stringify({
       url: '/archive.pmtiles',
@@ -53,14 +59,14 @@ test('downloads the offline copy with no-store in WebKit', async ({ page }) => {
     body: 'archive'
   }));
 
-  const state = await page.evaluate(async () => {
+  const state = await page.evaluate(async (name) => {
     await window.BikeBasemap.start({ autoSave: true });
-    const cache = await caches.open('basemap-v1');
+    const cache = await caches.open(name);
     return {
       status: window.BikeBasemap.state().status,
       cachedCopies: (await cache.keys()).length
     };
-  });
+  }, CACHE);
 
   expect(state).toEqual({ status: 'saved', cachedCopies: 1 });
   expect(await page.evaluate(() => window.archiveFetchModes)).toEqual(['no-store']);
@@ -72,15 +78,15 @@ test('replaces an outdated offline copy in WebKit', async ({ page }) => {
     body: 'archive'
   }));
 
-  const state = await page.evaluate(async () => {
-    const cache = await caches.open('basemap-v1');
+  const state = await page.evaluate(async (name) => {
+    const cache = await caches.open(name);
     await cache.put('/old.pmtiles', new Response('old'));
     await window.BikeBasemap.start({ autoSave: true });
     return {
       status: window.BikeBasemap.state().status,
       savedCopies: (await cache.keys()).map(k => new URL(k.url).pathname)
     };
-  });
+  }, CACHE);
 
   expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
   expect(await page.evaluate(() => window.archiveFetchModes)).toEqual(['no-store']);
@@ -93,16 +99,16 @@ async function startWithSavedCopy(page, savedDate, connection) {
     contentType: 'application/octet-stream',
     body: 'archive'
   }));
-  return page.evaluate(async ([savedDate, connection]) => {
+  return page.evaluate(async ([savedDate, connection, name]) => {
     if (connection) Object.defineProperty(navigator, 'connection', { value: connection, configurable: true });
-    const cache = await caches.open('basemap-v1');
+    const cache = await caches.open(name);
     await cache.put('/old.pmtiles', new Response('old', { headers: { 'X-Map-Date': savedDate } }));
     await window.BikeBasemap.start({ autoSave: true });
     return {
       status: window.BikeBasemap.state().status,
       savedCopies: (await cache.keys()).map(k => new URL(k.url).pathname)
     };
-  }, [savedDate, connection]);
+  }, [savedDate, connection, CACHE]);
 }
 
 test('keeps a saved copy that is less than a month behind', async ({ page }) => {
@@ -130,8 +136,7 @@ test('replaces a recent saved copy on Wi-Fi', async ({ page }) => {
 // format 1, as phones already have it), and an app drops the copy an app of another
 // format saved, since it can't draw that file.
 async function asMapFormat(page, n) {
-  const formats = fs.readFileSync(path.join(__dirname, '..', 'js', 'formats.js'), 'utf8')
-    .replace(/map: 1\b/, `map: ${n}`);
+  const formats = FORMATS_JS.replace(/map: *\d+/, `map: ${n}`);
   await page.route('**/js/formats.js', route => route.fulfill({ contentType: 'application/javascript', body: formats }));
   await page.route('**/tiles/tiles.v2.json', route => route.fulfill({
     contentType: 'application/json',
