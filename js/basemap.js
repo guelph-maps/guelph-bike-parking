@@ -14,7 +14,7 @@
   // formats from here (old pages load this file first). `node scripts/formats.mjs
   // check` keeps these numbers equal to js/formats.js.
   if (!window.BikeFormats) {
-    var fallback = { data: 1, map: 1 };
+    var fallback = { data: 1, map: 2 };
     window.BikeFormats = {
       formats: fallback,
       versioned: function (path, kind) {
@@ -37,7 +37,7 @@
   var STALE_DAYS = 30;
 
   // A phone with an older saved map: download the new one now? A fresh file
-  // is built every week, so "newer" alone would cost every phone about 2.4 MB a week.
+  // is built every week, so "newer" alone would cost every phone about 1.3 MB a week.
   // Update once the saved copy's OpenStreetMap data is a month behind, or
   // sooner where the browser says it's on Wi-Fi. Only Chrome on Android
   // says; iPhones get the age rule. Save-Data turns autoSave off altogether.
@@ -69,7 +69,7 @@
   }
 
   // Copies saved by an app of another map format are of no use to this one, so they
-  // go, about 2.4 MB each. Done on every start, since a page of the older app still
+  // go, up to 2.4 MB each. Done on every start, since a page of the older app still
   // open in another tab may save its copy again. A page drawing from a copy holds
   // it in memory, so deleting it here doesn't blank that page's map.
   async function dropOtherFormats() {
@@ -137,10 +137,22 @@
   var protocol = new pmtiles.Protocol();
   // Our tile files (js/gbt.js) are turned back into vector tiles, and cut into
   // smaller ones past the file's top level, so close-up views draw less. Plain
-  // vector tile files pass through untouched.
-  var handlers = GBT.protocols(protocol, { sliceTo: 15 });
-  maplibregl.addProtocol('pmtiles', handlers.pmtiles);
-  maplibregl.addProtocol('pmtiles-raw', handlers['pmtiles-raw']);
+  // vector tile files pass through untouched. A page cached before js/gbt.js existed
+  // doesn't load it, though the new service worker can pair it with this script, so
+  // then it's fetched here and tile requests wait for it.
+  var gbt = window.GBT ? Promise.resolve(window.GBT) : new Promise(function (res, rej) {
+    var script = document.createElement('script');
+    script.src = abs('js/gbt.js');
+    script.onload = function () { res(window.GBT); };
+    script.onerror = rej;
+    document.head.appendChild(script);
+  });
+  var handlers = gbt.then(function (G) { return G.protocols(protocol, { sliceTo: 15 }); });
+  ['pmtiles', 'pmtiles-raw'].forEach(function (name) {
+    maplibregl.addProtocol(name, function (params, abort) {
+      return handlers.then(function (h) { return h[name](params, abort); });
+    });
+  });
   // The workers make the tiles themselves, asking the page only for stored bytes.
   if (maplibregl.importScriptInWorkers) maplibregl.importScriptInWorkers(abs('js/gbt.js'));
   protocol.add(new pmtiles.PMTiles(lazySource));
