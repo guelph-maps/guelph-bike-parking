@@ -14,7 +14,9 @@ const releases = [
   { id: 5, tag_name: 'data-2026-11-13', draft: true, body: null, assets: map },
   { id: 6, tag_name: 'data-2026-11-14', draft: true, body: 'New base map, upload failed.', assets: [] },
   { id: 7, tag_name: 'data-2026-11-15', draft: true, body: 'New base map, other file.', assets: [{ name: 'notes.txt' }] },
-  { id: 8, tag_name: 'v0.1.2', draft: true, body: 'New base map support.', assets: map }
+  { id: 8, tag_name: 'v0.1.2', draft: true, body: 'New base map support.', assets: map },
+  { id: 9, tag_name: 'data-2026-11-10', draft: true, body: 'New base map (map format 2), OSM data from Nov 9.', assets: [{ name: 'guelph.v2.pmtiles' }] },
+  { id: 10, tag_name: 'data-2026-11-09', draft: true, body: 'New base map, renamed file.', assets: [{ name: 'guelph.vx.pmtiles' }] }
 ];
 
 test('deletes only older base map drafts the weekly build made', () => {
@@ -22,5 +24,6 @@ test('deletes only older base map drafts the weekly build made', () => {
     input: JSON.stringify(releases),
     encoding: 'utf8'
   });
-  expect(out).toBe('2 data-2026-11-11\n');
+  // jq on Windows ends lines with \r\n.
+  expect(out.replace(/\r/g, '')).toBe('2 data-2026-11-11\n9 data-2026-11-10\n');
 });

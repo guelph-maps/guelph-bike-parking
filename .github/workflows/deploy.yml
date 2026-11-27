@@ -46,10 +46,16 @@ jobs:
       - name: Get the base map
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/get-tiles.sh
+        run: |
+          scripts/get-tiles.sh "" "$(node scripts/formats.mjs format map HEAD)"
+          # After a map format bump, older apps keep the previous format for a while.
+          old=$(node scripts/formats.mjs overlap HEAD map)
+          if [ -n "$old" ]; then scripts/get-tiles.sh "" "$old" || true; fi
       - name: Keep the base map that's live now, for pages still streaming it
-        run: scripts/get-live-tiles.sh https://beta.guelph.bike
+        run: scripts/get-live-tiles.sh https://beta.guelph.bike HEAD
       - name: Collect site files
+        env:
+          GH_TOKEN: ${{ github.token }} # formats.mjs overlap dates from the release, as above
         run: |
           scripts/build-site.sh HEAD HEAD
           node scripts/mark-beta.mjs _site
@@ -125,10 +131,26 @@ jobs:
           echo "f310bd0413e2e4512b27f4046d418664e8e1d3bf31603c2a70e23de06c167e4d  build/planetiler.jar" | sha256sum -c -
           curl -sSfL -o build/ontario.osm.pbf https://download.geofabrik.de/north-america/canada/ontario-latest.osm.pbf
           node scripts/build-tiles.mjs build/ontario.osm.pbf
+          # Named for its map format, as tiles.yml does. Newer build scripts write that
+          # name themselves; a branch from before map formats has just the one name.
+          if [ -f scripts/formats.mjs ]; then
+            name=$(node scripts/formats.mjs asset)
+            [ -f "build/$name" ] || cp build/guelph.pmtiles "build/$name"
+          fi
+      # After a map format bump, older apps keep the previous format for a while.
+      - name: Get the previous map format's base map
+        if: hashFiles('scripts/formats.mjs') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          old=$(node scripts/formats.mjs overlap HEAD map)
+          if [ -n "$old" ]; then scripts/get-tiles.sh "" "$old" || true; fi
       # A branch from before this script existed just deploys without the old file.
       - name: Keep the base map that's live now, for pages still streaming it
         run: if [ -x scripts/get-live-tiles.sh ]; then scripts/get-live-tiles.sh https://beta.guelph.bike; fi
       - name: Collect site files
+        env:
+          GH_TOKEN: ${{ github.token }} # formats.mjs overlap dates from the release, as above
         run: |
           scripts/build-site.sh HEAD HEAD
           node scripts/mark-beta.mjs _site
@@ -218,9 +240,18 @@ jobs:
       - name: Get the base map
         env:
           GH_TOKEN: ${{ github.token }}
-        run: scripts/get-tiles.sh "${{ steps.pick.outputs.data }}"
+          APP: ${{ steps.pick.outputs.app }}
+          DATA: ${{ steps.pick.outputs.data }}
+        run: |
+          # The map format the app release reads; an app can't go live without it.
+          scripts/get-tiles.sh "$DATA" "$(node scripts/formats.mjs format map "$APP")"
+          # After a map format bump, older apps keep the previous format for a while.
+          old=$(node scripts/formats.mjs overlap "$APP" map)
+          if [ -n "$old" ]; then scripts/get-tiles.sh "$DATA" "$old" || true; fi
       - name: Keep the base map that's live now, for pages still streaming it
-        run: scripts/get-live-tiles.sh https://guelph.bike
+        env:
+          APP: ${{ steps.pick.outputs.app }}
+        run: scripts/get-live-tiles.sh https://guelph.bike "$APP"
       - uses: actions/configure-pages@v5
       - name: Collect site files
         env:

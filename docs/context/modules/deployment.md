@@ -11,6 +11,10 @@ sourcePaths:
   - "scripts/mark-beta.mjs"
   - "scripts/publish-beta.sh"
   - "DATA_FORMAT"
+  - "MAP_FORMAT"
+  - "js/formats.js"
+  - "scripts/formats.mjs"
+  - ".github/workflows/formats.yml"
   - "data/FORMAT"
 lastRefreshedCommit: 65b96c9ca19f9ba7d0c4086cb913fe54eff66f1b
 confidence: high
@@ -33,10 +37,10 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - [data-refresh.yml](../../../.github/workflows/data-refresh.yml): Weekly automation fetches fresh OSM data and opens or updates a PR against `main`.
 - [tiles.yml](../../../.github/workflows/tiles.yml): Weekly (Mondays) and manual workflow builds a draft `data-*` release with the new PMTiles asset, replaces older drafts it made (picked by `scripts/old-drafts.jq`, tested in `tests/old-drafts.spec.js`), and updates beta; a scheduled week whose tiles match the last file (`scripts/tiles-changed.mjs`) publishes nothing.
 - [build-site.sh](../../../scripts/build-site.sh): Validates app/data refs and `DATA_FORMAT` / `data/FORMAT`, then assembles `_site` from the selected app and data tags.
-- [get-tiles.sh](../../../scripts/get-tiles.sh): Downloads the relevant `guelph.pmtiles` release asset for beta or production.
-- [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now, so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
+- [get-tiles.sh](../../../scripts/get-tiles.sh): Downloads the relevant `guelph.pmtiles` release asset for beta or production, through a temporary file checked against the release's size, so a cut-off download never reaches `build/`.
+- [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now (one per map format it serves), so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
 - [mark-beta.mjs](../../../scripts/mark-beta.mjs): Marks a built site as beta before pushing it to the beta Pages repository.
-- [publish-beta.sh](../../../scripts/publish-beta.sh): Checks the built site has `tiles/tiles.json`, pushes it to the beta Pages repository with the deploy key, and waits for beta.guelph.bike to answer. Both beta paths use it.
+- [publish-beta.sh](../../../scripts/publish-beta.sh): Checks the built site has the map manifest for its own map format, read from the site's `js/formats.js` (`tiles/tiles.json`, or `tiles.vN.json` after a map format bump; `tiles.json` for sites from before map formats), pushes it to the beta Pages repository with the deploy key, and waits for beta.guelph.bike to answer. Both beta paths use it.
 - [DATA_FORMAT](../../../DATA_FORMAT): App compatibility contract used by the deployment preflight.
 - [data/FORMAT](../../../data/FORMAT): Data compatibility marker used alongside the app format.
 
@@ -52,7 +56,10 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - A production release needs both an app tag such as `v0.1.0` and a data tag such as `data-2026-11-09`, and the workflow exits early if either is missing.
 - On release-triggered production runs, a `v*` tag selects itself as the app; data always defaults to the newest `data-*` tag by name, even when an older data release triggered the run, so publishing an old draft can't roll data back. Workflow inputs override either side for deliberate rollbacks.
 - `DATA_FORMAT` and `data/FORMAT` must match exactly. A mismatch aborts the deploy and leaves the site on the last known-good release.
-- Beta requires `tiles/tiles.json` inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
+- `MAP_FORMAT` picks the base map file (`guelph.pmtiles` for 1, `guelph.v2.pmtiles` for 2, ...); production refuses an app whose map format has no published file.
+- From format 2, pins and the tiles manifest are published under versioned names (`data/bike-parking.v2.geojson`, `tiles/tiles.v2.json`) and the app (`js/formats.js`) only reads its own, so cached older apps never see newer data. Until 60 days after the first `v*` release of the new format (and always before it), deploys also publish the previous format's newest data under its names (`scripts/formats.mjs overlap`).
+- Pull requests that bump a format need the `breaking-data` label and a `Breaking-data: <kind> <old> -> <new>` trailer on the bumping commit (`.github/workflows/formats.yml`).
+- Beta requires the tiles manifest for its map format (`tiles/tiles.json`, `tiles/tiles.v2.json`, ...) inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
 - `scripts/get-tiles.sh` downloads the newest matching `guelph.pmtiles` asset for the data tag; production refuses to deploy if none exists.
 - Weekly drafts pin the data tag to the build commit, so publishing releases out of order cannot change the parking data selected by later app releases.
 - Weekly tile builds are safe for phones because `js/basemap.js` replaces a saved base map once it is 30 days behind, when the site rolls back, or on Android Wi-Fi. Publish weekly drafts only after an app release newer than v0.1.1 is live; older apps re-download the map (about 2.4 MB) on every file change.

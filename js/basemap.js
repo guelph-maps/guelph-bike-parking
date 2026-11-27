@@ -9,8 +9,30 @@
 (function () {
   'use strict';
 
-  var INFO_URL = 'tiles/tiles.json';
-  var CACHE = 'basemap-v1';
+  // A page cached before js/formats.js existed doesn't load it, yet the new service
+  // worker can still hand it this script and js/map.js, which then read this app's
+  // formats from here (old pages load this file first). `node scripts/formats.mjs
+  // check` keeps these numbers equal to js/formats.js.
+  if (!window.BikeFormats) {
+    var fallback = { data: 1, map: 1 };
+    window.BikeFormats = {
+      formats: fallback,
+      versioned: function (path, kind) {
+        var n = fallback[kind];
+        return n <= 1 ? path : path.replace(/(\.[A-Za-z]+)$/, '.v' + n + '$1');
+      }
+    };
+  }
+
+  // Named for the map format this app reads (js/formats.js), so an older copy of
+  // the app never picks up a map it can't draw.
+  var INFO_URL = BikeFormats.versioned('tiles/tiles.json', 'map');
+  // The saved copy is kept per map format too, or an app would draw a file in a
+  // format it can't read after a bump or a rollback. Map format 1 keeps the name
+  // phones already have; the rest still start with "basemap-v", which the ⋮ menu's
+  // Clear cache matches (js/map.js).
+  var MAP = BikeFormats.formats.map;
+  var CACHE = MAP <= 1 ? 'basemap-v1' : 'basemap-v1-m' + MAP;
   var KEY = 'guelph'; // what the style's pmtiles:// URL points at
   var STALE_DAYS = 30;
 
@@ -44,6 +66,19 @@
         setTimeout(function () { reject(new Error('timed out')); }, ms);
       })
     ]);
+  }
+
+  // Copies saved by an app of another map format are of no use to this one, so they
+  // go, about 2.4 MB each. Done on every start, since a page of the older app still
+  // open in another tab may save its copy again. A page drawing from a copy holds
+  // it in memory, so deleting it here doesn't blank that page's map.
+  async function dropOtherFormats() {
+    if (!window.caches) return;
+    try {
+      var names = await caches.keys();
+      await Promise.all(names.filter(function (k) { return /^basemap-v/.test(k) && k !== CACHE; })
+        .map(function (k) { return caches.delete(k); }));
+    } catch (err) {}
   }
 
   // { url, bytes, date, blob } for the copy on this device, or null.
@@ -114,6 +149,10 @@
         set({ status: 'saved', saved: { url: saved.url, bytes: saved.bytes, date: saved.date } });
       }
       var info = await fetchInfo();
+      // Only once this format's map is online. Until then (offline, or no file of
+      // this format published yet) the other copy stays, in case the site goes
+      // back to the app that reads it.
+      dropOtherFormats();
       if (!saved) {
         streamingUrl = info.url;
         resolveSource(streamingSource(info.url));
