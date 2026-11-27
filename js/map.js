@@ -845,7 +845,10 @@
   // The service worker keeps the app, the data and viewed map tiles, so the map
   // still opens with no signal. Tell people when they're seeing a saved copy.
   var sw = 'serviceWorker' in navigator && location.protocol !== 'file:' ? navigator.serviceWorker : null;
-  var swReg = sw ? sw.register('sw.js').catch(function () { return null; /* the map works without it */ }) : Promise.resolve(null);
+  // updateViaCache 'none': the update check also refetches the scripts sw.js imports
+  // (js/formats.js) past the HTTP cache, so a new release's worker never imports a
+  // stale copy and precaches the wrong format's data.
+  var swReg = sw ? sw.register('sw.js', { updateViaCache: 'none' }).catch(function () { return null; /* the map works without it */ }) : Promise.resolve(null);
 
   var offlineNote = L.DomUtil.create('div', 'bp-offline', map.getContainer());
   offlineNote.setAttribute('role', 'status');
