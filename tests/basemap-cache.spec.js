@@ -1,4 +1,6 @@
 const { test, expect } = require('@playwright/test');
+const fs = require('fs');
+const path = require('path');
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -122,4 +124,52 @@ test('replaces a saved copy that is newer than the site', async ({ page }) => {
 test('replaces a recent saved copy on Wi-Fi', async ({ page }) => {
   const state = await startWithSavedCopy(page, '2026-11-04', { type: 'wifi' });
   expect(state).toEqual({ status: 'saved', savedCopies: ['/archive.pmtiles'] });
+});
+
+// Each map format keeps its saved copy under its own cache name ('basemap-v1' for
+// format 1, as phones already have it), and an app drops the copy an app of another
+// format saved, since it can't draw that file.
+async function asMapFormat(page, n) {
+  const formats = fs.readFileSync(path.join(__dirname, '..', 'js', 'formats.js'), 'utf8')
+    .replace(/map: 1\b/, `map: ${n}`);
+  await page.route('**/js/formats.js', route => route.fulfill({ contentType: 'application/javascript', body: formats }));
+  await page.route('**/tiles/tiles.v2.json', route => route.fulfill({
+    contentType: 'application/json',
+    body: JSON.stringify({ url: '/archive-v2.pmtiles', bytes: 2, date: '2026-11-11' })
+  }));
+  await page.route('**/archive*.pmtiles', route => route.fulfill({
+    contentType: 'application/octet-stream',
+    body: route.request().url().endsWith('-v2.pmtiles') ? 'v2' : 'archive'
+  }));
+  await page.reload();
+}
+
+async function saveIn(page, cacheName, url) {
+  await page.evaluate(async ([cacheName, url]) => {
+    const cache = await caches.open(cacheName);
+    await cache.put(url, new Response('x', { headers: { 'X-Map-Date': '2026-11-11' } }));
+  }, [cacheName, url]);
+}
+
+async function startAndList(page) {
+  const saved = await page.evaluate(async () => {
+    await window.BikeBasemap.start({ autoSave: true });
+    const s = window.BikeBasemap.state();
+    return { status: s.status, url: new URL(s.saved.url, location.href).pathname };
+  });
+  await expect.poll(() => page.evaluate(async () => (await caches.keys()).filter(k => /^basemap-/.test(k)))).toHaveLength(1);
+  return { ...saved, caches: await page.evaluate(() => caches.keys()) };
+}
+
+test('a map format 2 app ignores and drops the format 1 copy', async ({ page }) => {
+  await saveIn(page, 'basemap-v1', '/archive.pmtiles');
+  await asMapFormat(page, 2);
+  expect(await startAndList(page)).toEqual({ status: 'saved', url: '/archive-v2.pmtiles', caches: ['basemap-v1-m2'] });
+});
+
+test('a map format 1 app keeps basemap-v1 and drops a format 2 copy', async ({ page }) => {
+  await saveIn(page, 'basemap-v1-m2', '/archive-v2.pmtiles');
+  await saveIn(page, 'basemap-v1', '/archive.pmtiles');
+  await asMapFormat(page, 1);
+  expect(await startAndList(page)).toEqual({ status: 'saved', url: '/archive.pmtiles', caches: ['basemap-v1'] });
 });

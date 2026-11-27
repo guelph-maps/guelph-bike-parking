@@ -234,7 +234,9 @@ From format 2 up, everything of that kind is published under names carrying the 
 | Base map release file | `guelph.pmtiles` | `guelph.v2.pmtiles` |
 
 An app only ever fetches its own format's names, so a phone still running an older copy
-never reads data it can't understand. For 60 days after a bump (the date of the commit that
+never reads data it can't understand. The offline copy of the base map is saved per map
+format too (`basemap-v1` for format 1, `basemap-v1-m2` for 2), and an app drops another
+format's copy once its own map is online. For 60 days after a bump (the date of the commit that
 changed the format file), every deploy also publishes the newest data of the previous
 format under its old names: pins from the last `data-*` release of that format, and the
 last base map file of that format. After that, older apps that never updated lose the
