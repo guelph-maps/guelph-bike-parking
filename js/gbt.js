@@ -304,7 +304,10 @@
   }
 
   // Features tagged _minzoom (stored at the top level for closer views only) are
-  // dropped below that zoom, and the tag itself never reaches MapLibre.
+  // dropped below that zoom, and the tag itself never reaches MapLibre. This holds at
+  // every level, not only the top one: a mis-tagged lower-level feature would otherwise
+  // show at 12, vanish at 13 and come back at 14. The build (to-gbt.mjs) refuses tags
+  // below the top level, so here it only ever matters at 13.
   var MINZOOM = '_minzoom';
   function intValue(v) {
     var r = new Reader(v, 1), n = r.v();

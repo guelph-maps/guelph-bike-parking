@@ -31,7 +31,9 @@ OpenStreetMap ──Planetiler──▶ MVT, levels 11–13 ──trim──▶ 
 2. **Close-up features keep their zoom.** Steps, driveways, parking aisles, sidewalk crossings
    and labels of small parks used to start at level 14. They are stored at 13 with a
    `_minzoom: 14` tag; the browser leaves them out of level-13 tiles, so the map shows them
-   from the same zoom as before and the style is unchanged.
+   from the same zoom as before and the style is unchanged. Only features that would have
+   started at 14 get the tag (a street that also carries `service=driveway` doesn't), and
+   the build fails if a tile below level 13 holds one, since the browser would hide it there.
 3. **Trim** (`scripts/tiles/own/trim.mjs`) reads `js/style.js` and:
    - drops every feature and attribute that no style layer draws;
    - merges features the style can't tell apart;

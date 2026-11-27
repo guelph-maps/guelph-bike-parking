@@ -16,8 +16,20 @@ export function toGbtArchive(input, output, opts = {}) {
   const ids = !!opts.ids;
   const { header, metadata, tiles } = readArchive(input);
   const out = new Map(), levels = {};
+  const top = Math.max(...[...tiles.keys()].map((k) => +k.split('/')[0]));
   for (const [k, gz] of tiles) {
     const tile = decodeTile(gunzipSync(gz));
+    // _minzoom marks top-level features for closer views only, and js/gbt.js hides a
+    // feature below its _minzoom at every level. On a lower level it would hide a
+    // feature that level is meant to draw, so a schema that puts it there fails here.
+    if (+k.split('/')[0] < top) {
+      for (const l of tile.layers) {
+        const ki = l.keys.indexOf('_minzoom');
+        if (ki >= 0 && l.features.some((f) => f.tags.some((t, i) => i % 2 === 0 && t === ki))) {
+          throw new Error(`tile ${k}: ${l.name} has features tagged _minzoom below the top level ${top} (scripts/tiles/schema.yml)`);
+        }
+      }
+    }
     const payload = encodeGbt(tile, { ids });
     const stored = gzipSync(payload, { level: 9 });
     out.set(k, stored);

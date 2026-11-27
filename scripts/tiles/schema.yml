@@ -181,10 +181,7 @@ layers:
           __all__:
             highway: [ path, footway, bridleway, track ]
             bicycle: [ designated, "yes", permissive ]
-        13:
-          highway: [ steps ]
-          service: [ driveway, parking_aisle, drive-through ]
-          footway: [ sidewalk, crossing ]
+        # Everything else starts at 13, the top level; close-up ones carry _minzoom below.
     include_when:
       highway: [ motorway, motorway_link, trunk, trunk_link, primary, primary_link, secondary, secondary_link,
                  tertiary, tertiary_link, residential, unclassified, living_street, road, service, track,
@@ -198,16 +195,23 @@ layers:
         __not__:
           bicycle: [ "yes", designated, permissive ]
     attributes:
-    # Close-up only (stored at 13, drawn from 14): the min_zoom 13 override above,
-    # unless an earlier override (paths and sidewalks bikes may use) already applies.
+    # Close-up only (stored at 13, drawn from 14): steps, driveways, parking aisles,
+    # drive-throughs and sidewalks/crossings, the ones that started at 14 before the file
+    # stopped at 13. Only on highways no min_zoom override above lifts (keep the two lists
+    # in step): a street or cycleway that also carries a service or footway tag is drawn
+    # at its own level, and js/gbt.js would hide it below 14 at every level.
     - key: _minzoom
       value: 14
       include_when:
-        highway: [ steps ]
-        service: [ driveway, parking_aisle, drive-through ]
-        footway: [ sidewalk, crossing ]
+        __all__:
+        - highway: [ service, track, path, footway, pedestrian, steps, bridleway ]
+        - highway: steps
+          service: [ driveway, parking_aisle, drive-through ]
+          footway: [ sidewalk, crossing ]
       exclude_when:
-        bicycle: [ designated, "yes", permissive ]
+        __all__:
+          highway: [ path, footway, bridleway, track ]
+          bicycle: [ designated, "yes", permissive ]
     - key: class
       value:
       - if: { highway: [ motorway, motorway_link ] }
