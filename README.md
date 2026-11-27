@@ -189,6 +189,12 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
   set `BETA_DEPLOY_KEY` and `BETA_DEPLOY_KEY_PASSPHRASE` in the source repo's Actions
   secrets, and add the matching public key as a write-enabled deploy key on
   `Coehill/guelph-bike-parking-beta`.
+
+  To try a pull request on beta, open Actions, then Deploy site, then Run workflow. Leave
+  the branch on `main` and enter the pull request number. Tick the base map box
+  to build the map from the pull request too (about 10 minutes longer); that map
+  goes only to beta, never into a data release. The next merge to `main` puts
+  beta back. Only branches of this repository work, not forks.
 - **Production**, [guelph.bike](https://guelph.bike/), only changes when someone publishes
   a GitHub release. A `v*` release publishes that app tag with the latest data release,
   and a `data-*` release publishes the latest data release with the latest app release. Data

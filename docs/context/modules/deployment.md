@@ -9,6 +9,7 @@ sourcePaths:
   - "scripts/get-live-tiles.sh"
   - "scripts/tiles-changed.mjs"
   - "scripts/mark-beta.mjs"
+  - "scripts/publish-beta.sh"
   - "DATA_FORMAT"
   - "data/FORMAT"
 lastRefreshedCommit: 65b96c9ca19f9ba7d0c4086cb913fe54eff66f1b
@@ -28,13 +29,14 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 
 ## Key files and public entry points
 
-- [deploy.yml](../../../.github/workflows/deploy.yml): Beta publishes from `main`; production only runs on `v*` and `data-*` tags; beta push uses `ssh-agent` with `BETA_DEPLOY_KEY` and `BETA_DEPLOY_KEY_PASSPHRASE`.
+- [deploy.yml](../../../.github/workflows/deploy.yml): Beta publishes from `main`; production only runs on `v*` and `data-*` tags; beta push uses `ssh-agent` with `BETA_DEPLOY_KEY` and `BETA_DEPLOY_KEY_PASSPHRASE`. Run by hand from `main` with a `pr` number, it puts that pull request on beta instead (`beta-pr-build`, `beta-pr-publish`), optionally with a base map built from the pull request (`tiles`).
 - [data-refresh.yml](../../../.github/workflows/data-refresh.yml): Weekly automation fetches fresh OSM data and opens or updates a PR against `main`.
 - [tiles.yml](../../../.github/workflows/tiles.yml): Weekly (Mondays) and manual workflow builds a draft `data-*` release with the new PMTiles asset, replaces older drafts it made (picked by `scripts/old-drafts.jq`, tested in `tests/old-drafts.spec.js`), and updates beta; a scheduled week whose tiles match the last file (`scripts/tiles-changed.mjs`) publishes nothing.
 - [build-site.sh](../../../scripts/build-site.sh): Validates app/data refs and `DATA_FORMAT` / `data/FORMAT`, then assembles `_site` from the selected app and data tags.
 - [get-tiles.sh](../../../scripts/get-tiles.sh): Downloads the relevant `guelph.pmtiles` release asset for beta or production.
 - [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now, so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
 - [mark-beta.mjs](../../../scripts/mark-beta.mjs): Marks a built site as beta before pushing it to the beta Pages repository.
+- [publish-beta.sh](../../../scripts/publish-beta.sh): Checks the built site has `tiles/tiles.json`, pushes it to the beta Pages repository with the deploy key, and waits for beta.guelph.bike to answer. Both beta paths use it.
 - [DATA_FORMAT](../../../DATA_FORMAT): App compatibility contract used by the deployment preflight.
 - [data/FORMAT](../../../data/FORMAT): Data compatibility marker used alongside the app format.
 
@@ -61,6 +63,8 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - GitHub Pages hosts one site per repository, so the beta build is pushed to a separate repository while production remains in the main repository.
 - A successful `ssh-add` is not enough for beta deploy success: GitHub still rejects pushes if the public deploy key in `Coehill/guelph-bike-parking-beta` does not match the private key secret or lacks write access.
 - The beta deploy is intentionally a preview of `main`, not a production release; it has no special release tag and is not meant to be a stable live environment.
+- A pull request on beta lasts until the next push to `main` or the next tile build, which both redeploy `main`. The pull request's code runs only in `beta-pr-build`, which never sees the deploy key; `beta-pr-publish` pushes the uploaded site with the dispatched ref's own `publish-beta.sh`. Pull requests from forks are refused because `beta-pr-build` holds a `contents: write` token (needed to list draft releases).
+- With `tiles` set, nothing goes into a data release: the pull request's base map exists only on beta, so `main`'s next beta deploy and production are unaffected.
 - Data-only changes remain in git and do not trigger a new app cache name; the service worker version stamp is derived from the app ref, so app releases are the only thing that forces a fresh app download.
 - Production uses the newest published `guelph.pmtiles` up to the selected data tag and fails early if there is none. The weekly build never uploads to a published release: scheduled runs warn and skip, and manual runs fail.
 - Each deploy keeps the live map file under the name its `tiles.json` gives (`scripts/get-live-tiles.sh` → `build/previous/`), so pages still streaming it keep their tiles.
