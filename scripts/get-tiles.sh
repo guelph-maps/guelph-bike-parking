@@ -21,13 +21,13 @@ if [ -n "$data_tag" ]; then
       | select(.draft == false)
       | select(.tag_name <= \"$data_tag\")
       | select(any(.assets[]; .name == \"$name\"))]
-    | sort_by(.created_at) | last | .assets[]? | select(.name == \"$name\") | .id")
+    | sort_by(.created_at) | last | .assets[]? | select(.name == \"$name\") | \"\(.id) \(.size)\"")
 else
   asset=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq "
     [.[]
       | select(.tag_name | startswith(\"data-\"))
       | select(any(.assets[]; .name == \"$name\"))]
-    | sort_by(.created_at) | last | .assets[]? | select(.name == \"$name\") | .id")
+    | sort_by(.created_at) | last | .assets[]? | select(.name == \"$name\") | \"\(.id) \(.size)\"")
 fi
 
 if [ -z "$asset" ]; then
@@ -40,5 +40,20 @@ if [ -z "$asset" ]; then
   exit 0
 fi
 
+# Into a temporary name first: callers that only want an older format go on after a
+# failure, and build-site.sh publishes whatever is at build/$name, so a cut-off
+# download must never land there.
+read -r id size <<< "$asset"
 mkdir -p build
-gh api -H 'Accept: application/octet-stream' "repos/$GITHUB_REPOSITORY/releases/assets/$asset" > "build/$name"
+part="build/.$name.part"
+trap 'rm -f "$part"' EXIT
+if ! gh api -H 'Accept: application/octet-stream' "repos/$GITHUB_REPOSITORY/releases/assets/$id" > "$part"; then
+  echo "::error title=Base map download failed::Couldn't download $name (release file $id)."
+  exit 1
+fi
+got=$(wc -c < "$part")
+if [ "$got" != "$size" ]; then
+  echo "::error title=Base map download cut off::Got $got bytes of $name, the release says $size."
+  exit 1
+fi
+mv "$part" "build/$name"
