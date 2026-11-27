@@ -14,7 +14,7 @@ on:
         description: 'Beta only: pull request number to put on beta instead of main (run from main)'
         required: false
       tiles:
-        description: 'Beta pull request only: build the base map from the pull request too (about 10 minutes longer)'
+        description: 'Beta pull request only: build the base map from the pull request too (a few minutes longer)'
         type: boolean
         default: false
       app:

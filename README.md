@@ -192,7 +192,7 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
 
   To try a pull request on beta, open Actions, then Deploy site, then Run workflow. Leave
   the branch on `main` and enter the pull request number. Tick the base map box
-  to build the map from the pull request too (about 10 minutes longer); that map
+  to build the map from the pull request too (a few minutes longer); that map
   goes only to beta, never into a data release. The next merge to `main` puts
   beta back. Only branches of this repository work, not forks.
 - **Production**, [guelph.bike](https://guelph.bike/), only changes when someone publishes
