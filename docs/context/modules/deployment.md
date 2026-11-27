@@ -53,7 +53,7 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - Beta requires `tiles/tiles.json` inside the built site before it pushes to the beta repo, so the deploy fails clearly if the basemap is missing.
 - `scripts/get-tiles.sh` downloads the newest matching `guelph.pmtiles` asset for the data tag; production refuses to deploy if none exists.
 - Weekly drafts pin the data tag to the build commit, so publishing releases out of order cannot change the parking data selected by later app releases.
-- Weekly tile builds are safe for phones because `js/basemap.js` replaces a saved base map once it is 30 days behind, when the site rolls back, or on Android Wi-Fi. Publish weekly drafts only after an app release newer than v0.1.1 is live; older apps re-download 3 MB on every file change.
+- Weekly tile builds are safe for phones because `js/basemap.js` replaces a saved base map once it is 30 days behind, when the site rolls back, or on Android Wi-Fi. Publish weekly drafts only after an app release newer than v0.1.1 is live; older apps re-download the map (about 2.4 MB) on every file change.
 - Beta publish exits early when either deploy secret is missing or when `BETA_DEPLOY_KEY` is unencrypted.
 
 ## Gotchas and non-obvious behaviour

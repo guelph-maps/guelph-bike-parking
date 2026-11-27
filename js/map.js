@@ -54,7 +54,7 @@
     zoomControl: false,
     scrollWheelZoom: !embed,
     zoomSnap: 0.5,
-    minZoom: 11,
+    minZoom: 11.5,
     maxZoom: 19
   });
   // Embedded maps shouldn't hijack page scrolling until someone interacts with them.

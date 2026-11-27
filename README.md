@@ -8,7 +8,7 @@ type, mixed ones in the colours of the types they contain, and a group gets the 
 any spot in it is covered. Private parking
 (`access=private`) is left off. The map can be embedded in other websites, such as
 GCAT's, with an `<iframe>`. It works with no signal: the whole city's bike map is
-saved on the device (about 3 MB).
+saved on the device (about 2.4 MB).
 
 Production at **https://guelph.bike/**
 
@@ -90,7 +90,7 @@ The map is only as good as these tags, so if a rack's `capacity` or type is wron
 The default base map is ours: vector tiles of Guelph and its surroundings in one
 [PMTiles](https://docs.protomaps.com/pmtiles/) file, drawn by
 [MapLibre GL](https://maplibre.org) underneath Leaflet. All of Guelph at every zoom is
-about 3 MB, so the app saves the whole file on the device (`js/basemap.js`) and the map
+about 2.4 MB, so the app saves the whole file on the device (`js/basemap.js`) and the map
 works with no signal anywhere in the city. It's styled for cycling (`js/style.js`):
 
 - solid blue: cycleways and paths designated for bikes; dashed blue: bikes allowed;
@@ -117,7 +117,7 @@ streaming it when a new map goes live keeps its tiles; the one before that is dr
 
 Streaming maps (embeds, and phones that haven't saved the map) always show the newest
 file. A phone that has saved an older copy doesn't fetch every new one, since each is
-3 MB: it updates in the background once its copy's OpenStreetMap data is 30 days behind,
+about 2.4 MB: it updates in the background once its copy's OpenStreetMap data is 30 days behind,
 or sooner when Chrome on Android reports Wi-Fi (iPhones don't say), and switches on the
 next visit. It also replaces the saved copy when the site rolls back to an older map.
 About shows the saved copy's date and an "Update saved map" button.
@@ -133,6 +133,8 @@ java -jar path/to/planetiler.jar verify scripts/tiles/schema.yml   # schema test
 
 Without an argument, `build-tiles.mjs` reads the Ontario extract named in
 `$OSM_DATA_DIR/ontario/latest.json` (default `~/Code/.osm-data`). It takes about a minute.
+Each zoom level covers the city boundary in `data/guelph-boundary.geojson` grown by
+its own margin, from 8 km at the most zoomed-out level to 2 km close up (`MARGIN_KM`).
 
 ## Running locally
 
@@ -200,7 +202,7 @@ There are two sites, both built by `.github/workflows/deploy.yml`:
 | Data | `data-2026-11-09` | `data/` at the newest data release, and the newest published `guelph.pmtiles` up to it |
 
 Publish weekly base map drafts only once an app release newer than v0.1.1 is live. Phones
-on v0.1.1 or older download the whole 3 MB map again whenever the file changes.
+on v0.1.1 or older download the whole map (about 2.4 MB) again whenever the file changes.
 
 The production deploy fails at "Get the base map" if no published data release up to the
 chosen one has `guelph.pmtiles`. The weekly build never changes the file on a published release.

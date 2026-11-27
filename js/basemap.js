@@ -15,7 +15,7 @@
   var STALE_DAYS = 30;
 
   // A phone with an older saved map: download the new one now? A fresh file
-  // is built every week, so "newer" alone would cost every phone 3 MB a week.
+  // is built every week, so "newer" alone would cost every phone about 2.4 MB a week.
   // Update once the saved copy's OpenStreetMap data is a month behind, or
   // sooner where the browser says it's on Wi-Fi. Only Chrome on Android
   // says; iPhones get the age rule. Save-Data turns autoSave off altogether.
