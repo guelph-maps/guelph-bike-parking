@@ -13,8 +13,10 @@ set -euo pipefail
 site=$1
 message=$2
 
-if [ ! -s "$site/tiles/tiles.json" ]; then
-  echo "::error title=Missing beta base map::Beta deploy needs tiles/tiles.json. Build tiles and publish a data release with guelph.pmtiles first."
+# tiles.json, or tiles.v2.json and up after a map format bump (scripts/formats.mjs). The
+# site may be a pull request's, built before or after a bump, so any of them will do.
+if ! find "$site/tiles" -maxdepth 1 -name 'tiles*.json' -size +0 2>/dev/null | grep -q .; then
+  echo "::error title=Missing beta base map::Beta deploy needs tiles/tiles.json (tiles.vN.json from map format 2). Build tiles and publish a data release with the map file first."
   exit 1
 fi
 

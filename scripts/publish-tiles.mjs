@@ -43,28 +43,29 @@ function dataDate() {
   }
 }
 
-// The file the site serves now (scripts/get-live-tiles.sh), kept under the name
-// the site gave it so pages still streaming it don't lose their tiles. tiles.json
-// doesn't mention it, so nothing new starts on it, and the next deploy drops it.
-let previous = null;
+// The files the site serves now (scripts/get-live-tiles.sh; one per map format),
+// kept under the names the site gave them so pages still streaming one don't lose
+// their tiles. No manifest mentions them, so nothing new starts on them, and the
+// next deploy drops them.
+let previous = [];
 try {
   const dir = join(ROOT, 'build', 'previous');
-  const oldName = readdirSync(dir).find((f) => /^guelph-[0-9a-f]+\.pmtiles$/.test(f));
-  if (oldName && oldName !== name) previous = { name: oldName, bytes: readFileSync(join(dir, oldName)) };
+  previous = readdirSync(dir).filter((f) => /^guelph-[0-9a-f]+\.pmtiles$/.test(f) && f !== name)
+    .map((f) => ({ name: f, bytes: readFileSync(join(dir, f)) }));
 } catch {}
 
 mkdirSync(outDir, { recursive: true });
 writeFileSync(join(outDir, name), bytes);
-if (previous) {
-  writeFileSync(join(outDir, previous.name), previous.bytes);
-  console.log(`Kept the previous ${previous.name} for pages still streaming it`);
+for (const p of previous) {
+  writeFileSync(join(outDir, p.name), p.bytes);
+  console.log(`Kept the previous ${p.name} for pages still streaming it`);
 }
 const info = { url: name, bytes: bytes.length, date: dataDate() };
 writeFileSync(join(outDir, manifest), JSON.stringify(info) + '\n');
 // Drop map files no manifest names any more (another format's stays), except the
-// previous file kept above.
+// previous files kept above.
 const named = new Set(readdirSync(outDir).filter((f) => /^tiles(\.v\d+)?\.json$/.test(f))
   .map((f) => { try { return JSON.parse(readFileSync(join(outDir, f), 'utf8')).url; } catch { return null; } }));
-if (previous) named.add(previous.name);
+for (const p of previous) named.add(p.name);
 for (const f of readdirSync(outDir)) if (/^guelph-.*\.pmtiles$/.test(f) && !named.has(f)) rmSync(join(outDir, f));
 console.log(`Published ${name} as map format ${format} (${manifest}, ${(bytes.length / 1048576).toFixed(2)} MB, data ${info.date}) to ${outDir}`);

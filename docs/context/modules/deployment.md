@@ -38,9 +38,9 @@ The module covers the GitHub Pages deployment workflows, the beta/production rel
 - [tiles.yml](../../../.github/workflows/tiles.yml): Weekly (Mondays) and manual workflow builds a draft `data-*` release with the new PMTiles asset, replaces older drafts it made (picked by `scripts/old-drafts.jq`, tested in `tests/old-drafts.spec.js`), and updates beta; a scheduled week whose tiles match the last file (`scripts/tiles-changed.mjs`) publishes nothing.
 - [build-site.sh](../../../scripts/build-site.sh): Validates app/data refs and `DATA_FORMAT` / `data/FORMAT`, then assembles `_site` from the selected app and data tags.
 - [get-tiles.sh](../../../scripts/get-tiles.sh): Downloads the relevant `guelph.pmtiles` release asset for beta or production.
-- [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now, so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
+- [get-live-tiles.sh](../../../scripts/get-live-tiles.sh): Downloads the PMTiles file a site serves now (one per map format it serves), so the deploy keeps it beside the new one for pages still streaming it; failures only warn.
 - [mark-beta.mjs](../../../scripts/mark-beta.mjs): Marks a built site as beta before pushing it to the beta Pages repository.
-- [publish-beta.sh](../../../scripts/publish-beta.sh): Checks the built site has `tiles/tiles.json`, pushes it to the beta Pages repository with the deploy key, and waits for beta.guelph.bike to answer. Both beta paths use it.
+- [publish-beta.sh](../../../scripts/publish-beta.sh): Checks the built site has a map manifest (`tiles/tiles.json`, or `tiles.vN.json` after a map format bump), pushes it to the beta Pages repository with the deploy key, and waits for beta.guelph.bike to answer. Both beta paths use it.
 - [DATA_FORMAT](../../../DATA_FORMAT): App compatibility contract used by the deployment preflight.
 - [data/FORMAT](../../../data/FORMAT): Data compatibility marker used alongside the app format.
 

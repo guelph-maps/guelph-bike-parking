@@ -5,5 +5,6 @@
 | select(.tag_name | startswith("data-"))
 | select(.tag_name != $tag)
 | select((.body // "") | startswith("New base map"))
-| select(any(.assets[]; .name == "guelph.pmtiles"))
+# guelph.pmtiles, or guelph.v2.pmtiles and up after a map format bump (scripts/formats.mjs)
+| select(any(.assets[]; .name | test("^guelph(\\.v[0-9]+)?\\.pmtiles$")))
 | "\(.id) \(.tag_name)"
