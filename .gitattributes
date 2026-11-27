@@ -1,1 +1,12 @@
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.png binary
+*.jpg binary
+*.webp binary
+*.pbf binary
+*.pmtiles binary
+*.jar binary
+
+# Third-party files, kept byte for byte
 vendor/** -text
