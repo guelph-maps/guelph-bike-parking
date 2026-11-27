@@ -9,9 +9,9 @@
 //   tiles/tiles.json              tiles/tiles.v2.json
 //   guelph.pmtiles (release file) guelph.v2.pmtiles
 //
-// For OVERLAP_DAYS after a bump, deploys also publish the newest data of the
-// previous format under its names, for phones that haven't picked up the new app
-// yet. js/formats.js is the app's copy of the two numbers; `check` keeps them equal.
+// Until OVERLAP_DAYS after the first app release of a new format, deploys also
+// publish the newest data of the previous format under its names, for phones that
+// haven't picked up the new app yet. js/formats.js is the app's copy of the two numbers; `check` keeps them equal.
 //
 //   node scripts/formats.mjs check                 the copies agree, the data files exist (CI)
 //   node scripts/formats.mjs name <path> <kind> [format]  a path under that (or the working tree's) format
@@ -54,16 +54,40 @@ export function readFormat(kind, ref) {
 
 export const tilesAsset = (format) => versioned('guelph.pmtiles', format);
 
-// The previous format, while it's still to be published: the format file was last
-// changed (the bump) on a day within OVERLAP_DAYS of `today`.
+// The previous format, while it's still to be published: for OVERLAP_DAYS from the
+// day the new format was first released, so older apps get the full time however
+// long the bump waited on main. That's the first v* tag, in version order, whose
+// format file holds the new number. Before any release has it (beta) it's always
+// published.
 export function overlap(appRef, kind, today = new Date().toISOString().slice(0, 10)) {
   const format = readFormat(kind, appRef);
   if (format <= 1) return null;
-  const day = execFileSync('git', ['log', '-1', '--format=%cs', appRef, '--', FILES[kind]], { cwd: ROOT, encoding: 'utf8' }).trim();
-  if (!day) return null;
-  const age = (Date.parse(today) - Date.parse(day)) / 86400000;
+  const tag = firstRelease(kind, format);
+  if (!tag) return format - 1;
+  const age = (Date.parse(today) - Date.parse(releaseDay(tag))) / 86400000;
   return age <= OVERLAP_DAYS ? format - 1 : null;
 }
+
+function firstRelease(kind, format) {
+  const tags = git(['tag', '--list', 'v[0-9]*', '--sort=v:refname']).split('\n').filter(Boolean);
+  const holds = (tag) => { try { return readFormat(kind, tag) === format; } catch { return false; } };
+  return tags.find(holds) || null;
+}
+
+// The day its GitHub release was published, where gh can say (deploys have GH_TOKEN),
+// else the tag's own date: a release made on GitHub has a lightweight tag, dated by
+// its commit, which can be earlier. Either way only the date reaches stdout.
+function releaseDay(tag) {
+  try {
+    const repo = process.env.GITHUB_REPOSITORY ? ['--repo', process.env.GITHUB_REPOSITORY] : [];
+    const published = execFileSync('gh', ['release', 'view', tag, ...repo, '--json', 'publishedAt', '--jq', '.publishedAt // empty'],
+      { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 30000 }).trim();
+    if (published) return published.slice(0, 10);
+  } catch {}
+  return git(['for-each-ref', '--format=%(creatordate:short)', `refs/tags/${tag}`]).trim();
+}
+
+const git = (args) => execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 
 function check() {
   const problems = [];

@@ -54,6 +54,8 @@ jobs:
       - name: Keep the base map that's live now, for pages still streaming it
         run: scripts/get-live-tiles.sh https://beta.guelph.bike
       - name: Collect site files
+        env:
+          GH_TOKEN: ${{ github.token }} # formats.mjs overlap dates from the release, as above
         run: |
           scripts/build-site.sh HEAD HEAD
           node scripts/mark-beta.mjs _site
@@ -147,6 +149,8 @@ jobs:
       - name: Keep the base map that's live now, for pages still streaming it
         run: if [ -x scripts/get-live-tiles.sh ]; then scripts/get-live-tiles.sh https://beta.guelph.bike; fi
       - name: Collect site files
+        env:
+          GH_TOKEN: ${{ github.token }} # formats.mjs overlap dates from the release, as above
         run: |
           scripts/build-site.sh HEAD HEAD
           node scripts/mark-beta.mjs _site
